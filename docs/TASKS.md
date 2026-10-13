@@ -37,7 +37,7 @@
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
 | BE-007 | Implement categories, menu item CRUD, images and tablet menu read APIs | Member 3 | Todo | BE-028; ROMS-019–023, ROMS-025–026 |
-| BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Todo | BE-007, BE-014, BE-033; ROMS-056; no `available_quantity` or serving quota; check live availability |
+| BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Done | Implemented PATCH /api/menu-items/{id}/status (OWNER/KITCHEN_STAFF, 403 on DISCONTINUED for non-owner, Redis Gemini cache invalidation after commit) and GET /api/menu-items/{id}/sellability (live PostgreSQL recipe/stock check, no available_quantity/serving quota); 21/21 tests passed (111/111 project tests passed) |
 | BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Todo | BE-028, BE-006; ROMS-011–015, 017–018, 024, 036 |
 | BE-012 | Implement table transfer and transfer-history operations | QUANG | Todo | BE-009; ROMS-016 |
 
@@ -45,10 +45,10 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-010 | Implement Order/OrderItem creation, queries, atomic recipe-stock deduction and PENDING-only cancellation/restoration | BINH-DEV | Todo | BE-001, BE-007–009, BE-014, BE-033; deduct and record movements at creation; 409 if insufficient, restore via compensating movements; immutable items/quantities; ROMS-028–035, 042 |
-| BE-011 | Implement kitchen acceptance, cooking, ready/served item workflow and Order completion | BINH-DEV | Todo | BE-010; acceptance must NOT deduct stock again; Order stays `COOKING` until all non-cancelled items `COMPLETED`; ROMS-037–041 |
-| BE-021 | Publish and authorize relevant Order/Kitchen STOMP updates after DB commit | BINH-DEV | Todo | BE-011, BE-020, BE-031; coordinate table/session broadcasts with QUANG |
-| BE-027 | Test transitions, stock deduction/restoration, insufficient stock and concurrent Order creation/cancellation | BINH-DEV | Todo | BE-010–011, BE-014; prevent double deduction/restore; never auto-complete when no active items remain |
+| BE-010 | Implement Order/OrderItem creation, queries, atomic recipe-stock deduction and PENDING-only cancellation/restoration | BINH-DEV | Done | Implemented POST /api/orders (atomic stock deduction, negative ORDER_CONSUMPTION movements, 409 if insufficient), GET /api/orders, GET /api/orders/{id}, POST /api/orders/{id}/cancel & POST /api/orders/{id}/items/{itemId}/cancel (restores stock from history, positive compensating movements, double-restoration protection, STOMP event); 15/15 tests passed (126/126 project tests passed) |
+| BE-011 | Implement kitchen acceptance, cooking, ready/served item workflow and Order completion | BINH-DEV | Done | Implemented GET /api/kitchen/orders, GET /api/kitchen/orders/{id}, POST /api/kitchen/orders/{id}/accept (no stock re-deduction, 409 if not PENDING, STOMP event) and PATCH /api/kitchen/orders/{id}/items/{itemId}/status (PENDING->COOKING->READY->COMPLETED, role-based checks, auto parent order completion, zero-active items protection); 11/11 tests passed (137/137 project tests passed) |
+| BE-021 | Publish and authorize relevant Order/Kitchen STOMP updates after DB commit | BINH-DEV | Done | Implemented dedicated OrderEventPublisher with afterCommit transaction synchronization; publishes KitchenOrderEvent to /topic/kitchen/orders and OrderStatusChangedEvent to /topic/session/{sessionId}/orders on creation; publishes OrderStatusChangedEvent and OrderItemStatusChangedEvent to both kitchen and session destinations on status updates; 6/6 tests passed (143/143 project tests passed) |
+| BE-027 | Test transitions, stock deduction/restoration, insufficient stock and concurrent Order creation/cancellation | BINH-DEV | Done | Implemented OrderConcurrencyIntegrationTest (multi-threaded race conditions with pessimistic row locking, idempotent double-restore protection, end-to-end lifecycle, zero-active-items, mixed completion) plus unit edge cases in OrderServiceImplTest and KitchenServiceImplTest; 154/154 project tests passed |
 
 > Cart interactions (ROMS-027), success screens and other UI-only parts belong to the separate React project. Backend covers order validation, creation and retrieval required by those tickets.
 

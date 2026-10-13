@@ -236,7 +236,131 @@ Thu hồi phiên đăng nhập hiện tại trong cơ sở dữ liệu và yêu 
 
 ---
 
-## 4. Hướng Dẫn Kết Nối WebSocket / STOMP Realtime
+## 4. Chi Tiết API Quản Lý Trạng Thái & Khả Năng Bán Món Ăn (`/api/menu-items`)
+
+---
+
+### 4.1 Cập Nhật Trạng Thái Món Ăn Thủ Công (`PATCH /api/menu-items/{id}/status`)
+
+Cho phép Nhân viên Bếp (`KITCHEN_STAFF`) hoặc Chủ quán (`OWNER`) cập nhật trạng thái món ăn thủ công. Tự động xóa (invalidate) cache menu ngữ cảnh của Gemini trên Redis sau khi commit.
+
+- **Method:** `PATCH`
+- **URL:** `http://localhost:8080/api/menu-items/{id}/status`
+- **Phân quyền:**
+  - `OWNER`: Có quyền chuyển sang bất kỳ trạng thái nào (`AVAILABLE`, `TEMPORARILY_UNAVAILABLE`, `DISCONTINUED`).
+  - `KITCHEN_STAFF`: Chỉ có quyền chuyển sang `AVAILABLE` hoặc `TEMPORARILY_UNAVAILABLE`. Nếu cố gắng set `DISCONTINUED` sẽ nhận lỗi `403 Forbidden`.
+  - Các vai trò khác: Nhận lỗi `403 Forbidden`.
+- **Headers:**
+  - `Authorization: Bearer <access_token>`
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "status": "TEMPORARILY_UNAVAILABLE"
+}
+```
+*Các giá trị `status` hợp lệ:* `AVAILABLE`, `TEMPORARILY_UNAVAILABLE`, `DISCONTINUED`.
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Menu item status updated successfully",
+  "data": {
+    "id": 1,
+    "name": "Phở Bò Tái Nạm",
+    "status": "TEMPORARILY_UNAVAILABLE",
+    "updatedAt": "2026-10-13T22:20:00"
+  }
+}
+```
+
+#### Response Thất Bại Thường Gặp
+- **Bếp cố tình đánh dấu món ngừng bán vĩnh viễn (`403 Forbidden`):**
+  ```json
+  {
+    "success": false,
+    "message": "Only OWNER can mark a menu item as DISCONTINUED",
+    "error": {
+      "code": "FORBIDDEN",
+      "details": null
+    }
+  }
+  ```
+- **Không tìm thấy món ăn (`404 Not Found`):**
+  ```json
+  {
+    "success": false,
+    "message": "Menu item not found with id: 999",
+    "error": {
+      "code": "RESOURCE_NOT_FOUND",
+      "details": null
+    }
+  }
+  ```
+
+---
+
+### 4.2 Kiểm Tra Khả Năng Phục Vụ Live (`GET /api/menu-items/{id}/sellability`)
+
+Kiểm tra trực tiếp từ PostgreSQL xem món ăn có đủ điều kiện bán hay không dựa trên trạng thái món và số lượng tồn kho thực tế của các nguyên liệu trong công thức (BOM). **Không** làm thay đổi trạng thái món trong DB và **không** sử dụng hạn mức `available_quantity`.
+
+- **Method:** `GET`
+- **URL:** `http://localhost:8080/api/menu-items/{id}/sellability?quantity=2`
+- **Query Parameters:**
+  - `quantity`: Số lượng phần ăn dự kiến cần đặt (Mặc định: `1`, tối thiểu: `1`).
+- **Phân quyền:** Mọi tài khoản đã đăng nhập (`TABLE_ACCOUNT`, `SERVICE_STAFF`, `KITCHEN_STAFF`, `OWNER`, `INVENTORY_STAFF`).
+- **Headers:**
+  - `Authorization: Bearer <access_token>`
+
+#### Response Thành Công — Đủ Nguyên Liệu (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Menu item sellability checked successfully",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Tái Nạm",
+    "status": "AVAILABLE",
+    "sellable": true,
+    "reason": null,
+    "requestedQuantity": 2,
+    "maxPossibleQuantity": 133,
+    "insufficientIngredients": []
+  }
+}
+```
+
+#### Response Thành Công — Thiếu Nguyên Liệu / Tạm Hết Hàng (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Menu item sellability checked successfully",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Tái Nạm",
+    "status": "AVAILABLE",
+    "sellable": false,
+    "reason": "Insufficient ingredient stock: Thịt bò phi lê",
+    "requestedQuantity": 500,
+    "maxPossibleQuantity": 133,
+    "insufficientIngredients": [
+      {
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò phi lê",
+        "unit": "kg",
+        "requiredQuantity": 75.000,
+        "currentStock": 20.000
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 5. Hướng Dẫn Kết Nối WebSocket / STOMP Realtime
 
 Hệ thống đã hoàn thiện broker STOMP in-memory hỗ trợ cập nhật dữ liệu tức thì cho Bếp, Bàn ăn và Nhân viên phục vụ.
 
@@ -263,9 +387,9 @@ Hệ thống đã hoàn thiện broker STOMP in-memory hỗ trợ cập nhật d
 
 ---
 
-## 5. Mẫu Gọi API Bằng cURL
+## 6. Mẫu Gọi API Bằng cURL
 
-### 5.1 Đăng nhập (Lưu Cookie tự động ra file `cookies.txt`)
+### 6.1 Đăng nhập (Lưu Cookie tự động ra file `cookies.txt`)
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
@@ -273,22 +397,36 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"username":"owner","password":"Password@123"}'
 ```
 
-### 5.2 Xem Profile hiện tại
+### 6.2 Xem Profile hiện tại
 ```bash
 curl -X GET http://localhost:8080/api/auth/me \
   -H "Authorization: Bearer <access_token_nhận_được>"
 ```
 
-### 5.3 Làm mới Access Token (Gửi kèm Cookie từ file)
+### 6.3 Làm mới Access Token (Gửi kèm Cookie từ file)
 ```bash
 curl -X POST http://localhost:8080/api/auth/refresh \
   -b cookies.txt \
   -c cookies.txt
 ```
 
-### 5.4 Đăng xuất
+### 6.4 Đăng xuất
 ```bash
 curl -X POST http://localhost:8080/api/auth/logout \
   -H "Authorization: Bearer <access_token_nhận_được>" \
   -b cookies.txt
+```
+
+### 6.5 Đổi trạng thái món ăn (Kitchen/Owner)
+```bash
+curl -X PATCH http://localhost:8080/api/menu-items/1/status \
+  -H "Authorization: Bearer <access_token_nhận_được>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"TEMPORARILY_UNAVAILABLE"}'
+```
+
+### 6.6 Kiểm tra khả năng phục vụ món ăn (Tất cả vai trò)
+```bash
+curl -X GET "http://localhost:8080/api/menu-items/1/sellability?quantity=2" \
+  -H "Authorization: Bearer <access_token_nhận_được>"
 ```
