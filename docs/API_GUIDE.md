@@ -263,9 +263,632 @@ Hệ thống đã hoàn thiện broker STOMP in-memory hỗ trợ cập nhật d
 
 ---
 
-## 5. Mẫu Gọi API Bằng cURL
+## 5. API Quản Lý Nguyên Liệu, Kiểm Kê & Biến Động Kho (BE-014)
 
-### 5.1 Đăng nhập (Lưu Cookie tự động ra file `cookies.txt`)
+---
+
+### 5.1 Lấy Danh Sách Nguyên Liệu (`GET /api/ingredients`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`, `KITCHEN_STAFF`
+- **Query Params:**
+  - `isActive` (tùy chọn, boolean): `true` (chỉ lấy đang dùng) hoặc `false` (đã vô hiệu hóa). Bỏ trống để lấy tất cả.
+  - `page` (tùy chọn, mặc định: 0)
+  - `size` (tùy chọn, mặc định: 20)
+  - `sort` (tùy chọn, mặc định: `name,asc`)
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "name": "Thịt bò tái",
+        "unit": "kg",
+        "currentStock": 15.500,
+        "minimumStock": 5.000,
+        "isActive": true,
+        "stockStatus": "NORMAL",
+        "createdAt": "2026-10-14T00:00:00",
+        "updatedAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+*Ghi chú về `stockStatus` (tính toán động, không lưu cứng vào DB):*
+- `OUT_OF_STOCK`: Khi `currentStock <= 0`.
+- `LOW`: Khi `currentStock > 0` và `currentStock <= minimumStock`.
+- `NORMAL`: Các trường hợp còn lại.
+
+---
+
+### 5.2 Lấy Chi Tiết Nguyên Liệu (`GET /api/ingredients/{id}`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`, `KITCHEN_STAFF`
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "id": 1,
+    "name": "Thịt bò tái",
+    "unit": "kg",
+    "currentStock": 15.500,
+    "minimumStock": 5.000,
+    "isActive": true,
+    "stockStatus": "NORMAL",
+    "createdAt": "2026-10-14T00:00:00",
+    "updatedAt": "2026-10-14T00:00:00"
+  }
+}
+```
+
+---
+
+### 5.3 Thêm Mới Nguyên Liệu (`POST /api/ingredients`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Request Body:**
+```json
+{
+  "name": "Hành lá",
+  "unit": "kg",
+  "minimumStock": 2.000
+}
+```
+*(Số lượng `currentStock` ban đầu luôn được thiết lập mặc định là 0. Tồn kho chỉ được gia tăng qua phiếu nhập hàng hoặc điều chỉnh qua phiếu kiểm kê).*
+
+#### Response Thành Công (`201 Created`)
+```json
+{
+  "success": true,
+  "message": "Ingredient created successfully",
+  "data": {
+    "id": 2,
+    "name": "Hành lá",
+    "unit": "kg",
+    "currentStock": 0.000,
+    "minimumStock": 2.000,
+    "isActive": true,
+    "stockStatus": "OUT_OF_STOCK",
+    "createdAt": "2026-10-14T00:10:00",
+    "updatedAt": "2026-10-14T00:10:00"
+  }
+}
+```
+
+---
+
+### 5.4 Cập Nhật Thông Tin Nguyên Liệu (`PUT /api/ingredients/{id}`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Request Body:**
+```json
+{
+  "name": "Hành lá Đà Lạt",
+  "unit": "kg",
+  "minimumStock": 3.000
+}
+```
+*(Endpoint này chỉ sửa metadata của nguyên liệu, bảo toàn số lượng tồn kho hiện tại).*
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Ingredient updated successfully",
+  "data": {
+    "id": 2,
+    "name": "Hành lá Đà Lạt",
+    "unit": "kg",
+    "currentStock": 0.000,
+    "minimumStock": 3.000,
+    "isActive": true,
+    "stockStatus": "OUT_OF_STOCK",
+    "createdAt": "2026-10-14T00:10:00",
+    "updatedAt": "2026-10-14T00:15:00"
+  }
+}
+```
+
+---
+
+### 5.5 Vô Hiệu Hóa Nguyên Liệu (`PATCH /api/ingredients/{id}/deactivate`)
+
+- **Vai trò được phép:** `OWNER`
+- **Ràng buộc nghiệp vụ:** Hệ thống chặn không cho vô hiệu hóa nếu nguyên liệu đang nằm trong Recipe của bất kỳ món ăn nào chưa ngừng kinh doanh (`status <> 'DISCONTINUED'`). Trả về `409 Conflict`.
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Ingredient deactivated successfully",
+  "data": {
+    "id": 2,
+    "name": "Hành lá Đà Lạt",
+    "unit": "kg",
+    "currentStock": 0.000,
+    "minimumStock": 3.000,
+    "isActive": false,
+    "stockStatus": "OUT_OF_STOCK",
+    "createdAt": "2026-10-14T00:10:00",
+    "updatedAt": "2026-10-14T00:20:00"
+  }
+}
+```
+
+---
+
+### 5.6 Tạo Phiếu Kiểm Kê Kho (`POST /api/inventory-checks`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Cơ chế hoạt động:** Trong 1 transaction duy nhất:
+  1. Khóa bi quan (`PESSIMISTIC_WRITE`) các nguyên liệu liên quan.
+  2. Tính chênh lệch `difference = actualQuantity - systemQuantity`.
+  3. Cập nhật `currentStock = actualQuantity`.
+  4. Nếu có chênh lệch, tự động ghi `StockMovement` (type: `INVENTORY_ADJUSTMENT`, `balanceAfter = actualQuantity`) bù trừ.
+- **Request Body:**
+```json
+{
+  "checkedAt": "2026-10-14T00:00:00",
+  "note": "Kiểm kê đầu ca sáng",
+  "items": [
+    {
+      "ingredientId": 1,
+      "actualQuantity": 14.000,
+      "reason": "Hao hụt tự nhiên do sơ chế"
+    }
+  ]
+}
+```
+
+#### Response Thành Công (`201 Created`)
+```json
+{
+  "success": true,
+  "message": "Inventory check created successfully",
+  "data": {
+    "id": 1,
+    "checkedById": 1,
+    "checkedByName": "Nguyễn Văn Chủ",
+    "checkedAt": "2026-10-14T00:00:00",
+    "note": "Kiểm kê đầu ca sáng",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "systemQuantity": 15.500,
+        "actualQuantity": 14.000,
+        "difference": -1.500,
+        "reason": "Hao hụt tự nhiên do sơ chế",
+        "createdAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "createdAt": "2026-10-14T00:00:00",
+    "updatedAt": "2026-10-14T00:00:00"
+  }
+}
+```
+
+---
+
+### 5.7 Xem Danh Sách / Chi Tiết Kiểm Kê Kho
+
+- **Lấy danh sách:** `GET /api/inventory-checks?page=0&size=20` (`OWNER`, `INVENTORY_STAFF`)
+- **Lấy chi tiết:** `GET /api/inventory-checks/{id}` (`OWNER`, `INVENTORY_STAFF`)
+
+---
+
+### 5.8 Lịch Sử Biến Động Kho (`GET /api/stock-movements`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Query Params:**
+  - `ingredientId` (tùy chọn): ID nguyên liệu cần xem lịch sử.
+  - `movementType` (tùy chọn): `PURCHASE`, `ORDER_CONSUMPTION`, hoặc `INVENTORY_ADJUSTMENT`.
+  - `page`, `size`, `sort` (mặc định: `occurredAt,desc`).
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "content": [
+      {
+        "id": 10,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "movementType": "INVENTORY_ADJUSTMENT",
+        "quantityChange": -1.500,
+        "balanceAfter": 14.000,
+        "purchaseItemId": null,
+        "orderItemId": null,
+        "inventoryCheckItemId": 1,
+        "note": "Hao hụt tự nhiên do sơ chế",
+        "occurredAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+## 6. API Quản Lý Phiếu Nhập Hàng & Điều Chỉnh Bù Trừ (BE-015)
+
+---
+
+### 6.1 Lấy Danh Sách Phiếu Nhập (`GET /api/purchases`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Query Params:**
+  - `fromDate` (tùy chọn, định dạng `YYYY-MM-DD`)
+  - `toDate` (tùy chọn, định dạng `YYYY-MM-DD`)
+  - `page`, `size`, `sort` (mặc định: `purchaseDate,desc`)
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "purchaseDate": "2026-10-14",
+        "totalAmount": 3750000.00,
+        "createdById": 1,
+        "createdByName": "Nguyễn Văn Chủ",
+        "note": "Nhập thịt bò tươi buổi sáng",
+        "createdAt": "2026-10-14T00:00:00",
+        "updatedAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 6.2 Lấy Chi Tiết Phiếu Nhập (`GET /api/purchases/{id}`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "id": 1,
+    "purchaseDate": "2026-10-14",
+    "totalAmount": 3750000.00,
+    "createdById": 1,
+    "createdByName": "Nguyễn Văn Chủ",
+    "note": "Nhập thịt bò tươi buổi sáng",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantity": 15.000,
+        "unitPrice": 250000.00,
+        "subtotal": 3750000.00,
+        "createdAt": "2026-10-14T00:00:00",
+        "updatedAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "createdAt": "2026-10-14T00:00:00",
+    "updatedAt": "2026-10-14T00:00:00"
+  }
+}
+```
+
+---
+
+### 6.3 Tạo Phiếu Nhập Hàng (`POST /api/purchases`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Cơ chế hoạt động:**
+  - Khóa bi quan (`PESSIMISTIC_WRITE`) các nguyên liệu.
+  - Tính `subtotal = quantity * unitPrice`, cộng dồn vào `totalAmount`.
+  - Tăng số lượng tồn kho `currentStock += quantity`.
+  - Ghi bản ghi `StockMovement` (type: `PURCHASE`).
+- **Request Body:**
+```json
+{
+  "purchaseDate": "2026-10-14",
+  "note": "Nhập hàng từ NCC Minh Thư",
+  "items": [
+    {
+      "ingredientId": 1,
+      "quantity": 15.000,
+      "unitPrice": 250000.00
+    }
+  ]
+}
+```
+
+#### Response Thành Công (`201 Created`)
+```json
+{
+  "success": true,
+  "message": "Purchase created successfully",
+  "data": {
+    "id": 1,
+    "purchaseDate": "2026-10-14",
+    "totalAmount": 3750000.00,
+    "createdById": 1,
+    "createdByName": "Nguyễn Văn Chủ",
+    "note": "Nhập hàng từ NCC Minh Thư",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantity": 15.000,
+        "unitPrice": 250000.00,
+        "subtotal": 3750000.00,
+        "createdAt": "2026-10-14T00:00:00",
+        "updatedAt": "2026-10-14T00:00:00"
+      }
+    ],
+    "createdAt": "2026-10-14T00:00:00",
+    "updatedAt": "2026-10-14T00:00:00"
+  }
+}
+```
+
+---
+
+### 6.4 Điều Chỉnh Dòng Hàng Phiếu Nhập (`PATCH /api/purchases/{purchaseId}/items/{itemId}`)
+
+- **Vai trò được phép:** `OWNER`, `INVENTORY_STAFF`
+- **Cơ chế hoạt động (Correction Logic):**
+  1. Tính độ lệch: $\Delta = \text{newQuantity} - \text{oldQuantity}$.
+  2. Cập nhật tồn kho: $\text{newStock} = \text{currentStock} + \Delta$.
+  3. Nếu $\text{newStock} < 0$, từ chối với lỗi `409 Conflict` (không thể giảm số lượng nếu tồn kho thực tế hiện tại không đủ).
+  4. Cập nhật số lượng, đơn giá, tính lại `subtotal` và `totalAmount` của phiếu nhập.
+  5. Tự động ghi nhận một bản ghi `StockMovement` bù trừ mới (type `PURCHASE`, `quantityChange = delta`, `balanceAfter = newStock`) kèm ghi chú lý do điều chỉnh (`reason`).
+- **Request Body:**
+```json
+{
+  "quantity": 12.000,
+  "unitPrice": 250000.00,
+  "reason": "Thực tế cân lại bị hao hụt 3kg"
+}
+```
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Purchase item corrected successfully",
+  "data": {
+    "id": 1,
+    "purchaseDate": "2026-10-14",
+    "totalAmount": 3000000.00,
+    "createdById": 1,
+    "createdByName": "Nguyễn Văn Chủ",
+    "note": "Nhập hàng từ NCC Minh Thư",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantity": 12.000,
+        "unitPrice": 250000.00,
+        "subtotal": 3000000.00,
+        "createdAt": "2026-10-14T00:00:00",
+        "updatedAt": "2026-10-14T00:05:00"
+      }
+    ],
+    "createdAt": "2026-10-14T00:00:00",
+    "updatedAt": "2026-10-14T00:05:00"
+  }
+}
+```
+
+---
+
+## 7. API Quản Lý Công Thức Món Ăn - Recipe/BOM (BE-033)
+
+> *Lưu ý: Mọi thao tác thêm/sửa/xóa công thức đều tự động xóa (invalidate) cache thực đơn của trợ lý Gemini trên Redis (`menu:context:v1`) để AI luôn nắm bắt đúng định lượng.*
+
+---
+
+### 7.1 Xem Công Thức Của Món Ăn (`GET /api/menu-items/{menuItemId}/recipe`)
+
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`, `INVENTORY_STAFF`
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Đặc Biệt",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantityRequired": 0.150
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.2 Thay Thế Toàn Bộ Công Thức Món (`PUT /api/menu-items/{menuItemId}/recipe`)
+
+- **Vai trò được phép:** `OWNER`
+- **Request Body:**
+```json
+{
+  "items": [
+    {
+      "ingredientId": 1,
+      "quantityRequired": 0.150
+    },
+    {
+      "ingredientId": 2,
+      "quantityRequired": 0.050
+    }
+  ]
+}
+```
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Recipe updated successfully",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Đặc Biệt",
+    "items": [
+      {
+        "id": 2,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantityRequired": 0.150
+      },
+      {
+        "id": 3,
+        "ingredientId": 2,
+        "ingredientName": "Hành lá",
+        "unit": "kg",
+        "quantityRequired": 0.050
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.3 Thêm 1 Nguyên Liệu Vào Công Thức (`POST /api/menu-items/{menuItemId}/recipe/items`)
+
+- **Vai trò được phép:** `OWNER`
+- **Request Body:**
+```json
+{
+  "ingredientId": 2,
+  "quantityRequired": 0.050
+}
+```
+*(Nếu nguyên liệu đã có sẵn trong công thức của món, trả về `409 Conflict: DUPLICATE_RECIPE_ITEM`)*.
+
+#### Response Thành Công (`201 Created`)
+```json
+{
+  "success": true,
+  "message": "Recipe item added successfully",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Đặc Biệt",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantityRequired": 0.150
+      },
+      {
+        "id": 2,
+        "ingredientId": 2,
+        "ingredientName": "Hành lá",
+        "unit": "kg",
+        "quantityRequired": 0.050
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.4 Sửa Định Lượng 1 Nguyên Liệu (`PATCH /api/menu-items/{menuItemId}/recipe/items/{ingredientId}`)
+
+- **Vai trò được phép:** `OWNER`
+- **Request Body:**
+```json
+{
+  "quantityRequired": 0.200
+}
+```
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Recipe item updated successfully",
+  "data": {
+    "menuItemId": 1,
+    "menuItemName": "Phở Bò Đặc Biệt",
+    "items": [
+      {
+        "id": 1,
+        "ingredientId": 1,
+        "ingredientName": "Thịt bò tái",
+        "unit": "kg",
+        "quantityRequired": 0.200
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.5 Xóa Nguyên Liệu Khỏi Công Thức (`DELETE /api/menu-items/{menuItemId}/recipe/items/{ingredientId}`)
+
+- **Vai trò được phép:** `OWNER`
+
+#### Response Thành Công (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Recipe item deleted successfully",
+  "data": null
+}
+```
+
+---
+
+## 8. Mẫu Gọi API Bằng cURL
+
+### 8.1 Đăng nhập lấy Token
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
@@ -273,22 +896,41 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"username":"owner","password":"Password@123"}'
 ```
 
-### 5.2 Xem Profile hiện tại
+### 8.2 Xem danh sách nguyên liệu
 ```bash
-curl -X GET http://localhost:8080/api/auth/me \
-  -H "Authorization: Bearer <access_token_nhận_được>"
+curl -X GET "http://localhost:8080/api/ingredients?isActive=true&page=0&size=20" \
+  -H "Authorization: Bearer <access_token>"
 ```
 
-### 5.3 Làm mới Access Token (Gửi kèm Cookie từ file)
+### 8.3 Tạo phiếu nhập hàng
 ```bash
-curl -X POST http://localhost:8080/api/auth/refresh \
-  -b cookies.txt \
-  -c cookies.txt
+curl -X POST http://localhost:8080/api/purchases \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "purchaseDate": "2026-10-14",
+    "note": "Nhập thịt bò",
+    "items": [
+      {"ingredientId": 1, "quantity": 10.0, "unitPrice": 250000.0}
+    ]
+  }'
 ```
 
-### 5.4 Đăng xuất
+### 8.4 Điều chỉnh số lượng dòng hàng phiếu nhập
 ```bash
-curl -X POST http://localhost:8080/api/auth/logout \
-  -H "Authorization: Bearer <access_token_nhận_được>" \
-  -b cookies.txt
+curl -X PATCH http://localhost:8080/api/purchases/1/items/1 \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 9.0,
+    "unitPrice": 250000.0,
+    "reason": "Cân lại bị thiếu 1kg"
+  }'
 ```
+
+### 8.5 Xem công thức món ăn
+```bash
+curl -X GET http://localhost:8080/api/menu-items/1/recipe \
+  -H "Authorization: Bearer <access_token>"
+```
+
