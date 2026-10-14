@@ -56,9 +56,9 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-014 | Ingredient management, current/minimum stock, stock alerts, inventory checks/adjustments and movement history | Member 4 | Todo | BE-028; ROMS-043–044, 048–049; nonnegative balances and immutable movements; coordinate stock transaction/repository operations with BE-010 |
-| BE-033 | Recipe/BOM management and ingredient-cost queries | Member 4 | Todo | BE-007, BE-014; ROMS-051–054; `recipe_items` uses `ingredients.unit` |
-| BE-015 | Purchase list/create/detail and correction processing | Member 4 | Todo | BE-014; ROMS-057–059; purchased/received goods only; correction must atomically update stock and append traceable movements; review V1 movement constraints |
+| BE-014 | Ingredient management, current/minimum stock, stock alerts, inventory checks/adjustments and movement history | Member 4 | Done | BE-028; ROMS-043–044, 048–049; implemented Ingredient CRUD, PESSIMISTIC_WRITE locking, active menu item recipe deactivation check, atomic InventoryCheck discrepancy adjustments, StockMovement append-only audit trail and filtering; verified with 15/15 unit tests (105/105 total suite passed) |
+| BE-033 | Recipe/BOM management and ingredient-cost queries | Member 4 | Done | BE-007, BE-014; ROMS-051–054; `recipe_items` uses `ingredients.unit`; implemented Recipe get/batch-replace/item add/patch/delete with active ingredient check and Redis MenuContext cache invalidation (cost query excluded per agreement); verified with 9/9 unit tests (118/118 total suite passed) |
+| BE-015 | Purchase list/create/detail and correction processing | Member 4 | Done | BE-014; ROMS-057–059; implemented Purchase list (date range filter), create, detail, and atomic item correction with delta stock compensation and pessimistic locking; verified with 4/4 unit tests (109/109 total suite passed) |
 
 ## 6. Expenses, Reports and Dashboard — Member 5
 

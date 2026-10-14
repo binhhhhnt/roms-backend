@@ -573,22 +573,34 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ### 8.2 Xem Profile hiện tại
 ```bash
-curl -X GET http://localhost:8080/api/auth/me \
-  -H "Authorization: Bearer <access_token_nhận_được>"
+curl -X GET "http://localhost:8080/api/ingredients?isActive=true&page=0&size=20" \
+  -H "Authorization: Bearer <access_token>"
 ```
 
 ### 8.3 Làm mới Access Token (Gửi kèm Cookie từ file)
 ```bash
-curl -X POST http://localhost:8080/api/auth/refresh \
-  -b cookies.txt \
-  -c cookies.txt
+curl -X POST http://localhost:8080/api/purchases \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "purchaseDate": "2026-10-14",
+    "note": "Nhập thịt bò",
+    "items": [
+      {"ingredientId": 1, "quantity": 10.0, "unitPrice": 250000.0}
+    ]
+  }'
 ```
 
 ### 8.4 Đăng xuất
 ```bash
-curl -X POST http://localhost:8080/api/auth/logout \
-  -H "Authorization: Bearer <access_token_nhận_được>" \
-  -b cookies.txt
+curl -X PATCH http://localhost:8080/api/purchases/1/items/1 \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 9.0,
+    "unitPrice": 250000.0,
+    "reason": "Cân lại bị thiếu 1kg"
+  }'
 ```
 
 ### 8.5 Đổi trạng thái món ăn (Kitchen/Owner)
