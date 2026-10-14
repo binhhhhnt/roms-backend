@@ -11,10 +11,22 @@ import java.time.LocalDateTime;
 @Table(name = "categories")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class Category {
+
+    public Category() {
+    }
+
+    public Category(Long id, String name, String description, Integer displayOrder,
+                    Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.displayOrder = displayOrder != null ? displayOrder : 0;
+        this.isActive = isActive != null ? isActive : true;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

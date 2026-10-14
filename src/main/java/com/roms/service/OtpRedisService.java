@@ -4,80 +4,80 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * Service primitive for managing password-reset OTP and attempt counts in Redis.
- * Key formats:
- *   otp:{email}:hash     -> SHA-256 hash of the OTP (with TTL)
- *   otp:{email}:attempts -> Integer counter tracking verification attempts (with TTL)
+ * Dịch vụ giao tiếp với Redis để quản lý mã OTP đặt lại mật khẩu và giới hạn số lần thử.
+ * Cấu trúc Redis Key:
+ *   otp:{email}:hash     -> Mã băm SHA-256 của mã OTP (kèm thời gian sống TTL 5 phút)
+ *   otp:{email}:attempts -> Bộ đếm số lần nhập sai mã OTP (tối đa 5 lần)
  */
 public interface OtpRedisService {
 
     /**
-     * Store hashed OTP with default configured TTL.
+     * Lưu trữ mã băm OTP vào Redis với thời gian sống mặc định (300 giây / 5 phút).
      *
-     * @param email user email address
-     * @param hashedOtp SHA-256 hash of the OTP
+     * @param email     địa chỉ email của người dùng
+     * @param hashedOtp mã băm SHA-256 của chuỗi OTP
      */
     void storeOtp(String email, String hashedOtp);
 
     /**
-     * Store hashed OTP with custom TTL.
+     * Lưu trữ mã băm OTP vào Redis với thời gian sống tùy chỉnh.
      *
-     * @param email user email address
-     * @param hashedOtp SHA-256 hash of the OTP
-     * @param ttl time to live duration
+     * @param email     địa chỉ email của người dùng
+     * @param hashedOtp mã băm SHA-256 của chuỗi OTP
+     * @param ttl       thời lượng sống của key trong Redis
      */
     void storeOtp(String email, String hashedOtp, Duration ttl);
 
     /**
-     * Retrieve the stored OTP hash for the given email if present and not expired.
+     * Lấy mã băm OTP đang lưu trong Redis theo email (nếu còn hạn).
      *
-     * @param email user email address
-     * @return Optional containing the hashed OTP, or empty if expired or not found
+     * @param email địa chỉ email
+     * @return Optional chứa mã băm OTP, hoặc rỗng nếu đã hết hạn hoặc không tồn tại
      */
     Optional<String> getOtpHash(String email);
 
     /**
-     * Increment the failed verification attempt count for the given email.
+     * Tăng số lần thử sai OTP lên 1 đơn vị (dùng để chống tấn công Brute-force).
      *
-     * @param email user email address
-     * @return updated attempt count
+     * @param email địa chỉ email
+     * @return số lần thử sai hiện tại
      */
     int incrementAttempts(String email);
 
     /**
-     * Get the current failed attempt count for the given email.
+     * Lấy số lần thử sai OTP hiện tại của email.
      *
-     * @param email user email address
-     * @return attempt count, or 0 if no attempts recorded
+     * @param email địa chỉ email
+     * @return số lần thử sai, trả về 0 nếu chưa có lần thử nào
      */
     int getAttempts(String email);
 
     /**
-     * Check if the verification attempts have reached or exceeded the configured maximum.
+     * Kiểm tra xem số lần thử sai đã đạt đến giới hạn tối đa chưa (mặc định 5 lần).
      *
-     * @param email user email address
-     * @return true if max attempts exceeded, false otherwise
+     * @param email địa chỉ email
+     * @return true nếu đã vượt quá giới hạn cho phép
      */
     boolean isMaxAttemptsReached(String email);
 
     /**
-     * Delete both OTP hash and attempt counter for the given email.
+     * Xóa sạch cả mã OTP và bộ đếm số lần thử trong Redis (dùng sau khi reset thành công).
      *
-     * @param email user email address
+     * @param email địa chỉ email
      */
     void deleteOtp(String email);
 
     /**
-     * Get the configured default OTP TTL in seconds.
+     * Lấy thời gian sống mặc định của OTP tính theo giây (300 giây).
      *
-     * @return default TTL seconds
+     * @return số giây TTL
      */
     long getDefaultTtlSeconds();
 
     /**
-     * Get the configured maximum attempts.
+     * Lấy số lần thử sai tối đa được phép (mặc định 5 lần).
      *
-     * @return max attempts count
+     * @return số lần tối đa
      */
     int getMaxAttempts();
 }

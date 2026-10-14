@@ -12,10 +12,27 @@ import java.time.LocalDateTime;
 @Table(name = "stock_movements")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class StockMovement {
+
+    public StockMovement() {
+    }
+
+    public StockMovement(Long id, Ingredient ingredient, StockMovementType movementType,
+                         BigDecimal quantityChange, BigDecimal balanceAfter, PurchaseItem purchaseItem,
+                         OrderItem orderItem, InventoryCheckItem inventoryCheckItem, String note,
+                         LocalDateTime occurredAt) {
+        this.id = id;
+        this.ingredient = ingredient;
+        this.movementType = movementType;
+        this.quantityChange = quantityChange;
+        this.balanceAfter = balanceAfter;
+        this.purchaseItem = purchaseItem;
+        this.orderItem = orderItem;
+        this.inventoryCheckItem = inventoryCheckItem;
+        this.note = note;
+        this.occurredAt = occurredAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

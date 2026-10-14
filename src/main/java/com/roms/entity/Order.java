@@ -12,10 +12,25 @@ import java.time.LocalDateTime;
 @Table(name = "orders")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class Order {
+
+    public Order() {
+    }
+
+    public Order(Long id, ServiceSession serviceSession, User createdBy, OrderStatus status,
+                 String terminationReason, User terminatedBy, LocalDateTime terminatedAt,
+                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.serviceSession = serviceSession;
+        this.createdBy = createdBy;
+        this.status = status != null ? status : OrderStatus.PENDING;
+        this.terminationReason = terminationReason;
+        this.terminatedBy = terminatedBy;
+        this.terminatedAt = terminatedAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

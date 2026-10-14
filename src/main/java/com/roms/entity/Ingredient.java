@@ -12,10 +12,23 @@ import java.time.LocalDateTime;
 @Table(name = "ingredients")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class Ingredient {
+
+    public Ingredient() {
+    }
+
+    public Ingredient(Long id, String name, String unit, BigDecimal currentStock,
+                      BigDecimal minimumStock, Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.name = name;
+        this.unit = unit;
+        this.currentStock = currentStock != null ? currentStock : BigDecimal.ZERO;
+        this.minimumStock = minimumStock;
+        this.isActive = isActive != null ? isActive : true;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

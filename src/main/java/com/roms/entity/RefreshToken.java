@@ -11,10 +11,24 @@ import java.time.LocalDateTime;
 @Table(name = "refresh_tokens")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class RefreshToken {
+
+    public RefreshToken() {
+    }
+
+    public RefreshToken(Long id, User user, String tokenHash, String deviceId,
+                        LocalDateTime expiresAt, LocalDateTime revokedAt,
+                        LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.user = user;
+        this.tokenHash = tokenHash;
+        this.deviceId = deviceId;
+        this.expiresAt = expiresAt;
+        this.revokedAt = revokedAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

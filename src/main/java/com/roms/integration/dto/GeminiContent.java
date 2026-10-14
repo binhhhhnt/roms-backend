@@ -1,20 +1,24 @@
 package com.roms.integration.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.List;
 
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class GeminiContent {
     private String role;
     private List<GeminiPart> parts;
+
+    public GeminiContent() {
+    }
+
+    @Builder
+    public GeminiContent(String role, List<GeminiPart> parts) {
+        this.role = role;
+        this.parts = parts;
+    }
 
     public static GeminiContent user(String text) {
         return GeminiContent.builder()

@@ -144,7 +144,15 @@ All APIs returning JSON responses must use `ApiResponse<T>`.
 - Validate `Origin` on cookie-auth requests and use `SameSite` protection. If production FE and BE are **cross-site**, configure `SameSite=None; Secure` and an explicit CSRF token mechanism before deploying; CORS alone is insufficient.
 - Authenticate logout with a valid Bearer token, not only the cookie. Cookie-less protected endpoints use Bearer JWT authentication. Invalid/expired/revoked authentication returns `401`; insufficient permission returns `403`.
 
-## 8. Contract Ownership
+## 8. Menu Image Upload and Password-Recovery Contracts
+
+- Menu-image uploads/removals are authorized backend operations using **Cloudinary**. Use a validated multipart upload request where appropriate; validate allowed image type and file size. Store only Cloudinary URL/reference information in existing `menu_item_images` columns; do not expose provider secrets or assume extra columns exist.
+- Menu-image responses use the normal `ApiResponse<T>` JSON envelope. File-upload and removal endpoint paths, DTO fields, size limits, and Cloudinary deletion mapping must be confirmed by the owning developer before publication; do not invent endpoint paths.
+- Forgot-password OTP is sent through **Gmail SMTP** to the account email. OTP has **6 digits**, **5-minute TTL**, and **at most 5 failed verification attempts per issued OTP**. Backend stores an OTP verifier/hash and attempts in Redis; never return OTP or verifier in JSON.
+- Public forgot-password responses must not disclose whether the account/email exists. OTP verification/reset must enforce expiry, attempt limit and single use; use the standard error envelope for invalid, expired or exhausted codes without leaking secrets.
+- Exact forgot/reset password endpoint paths and request/response DTOs require confirmation with QUANG; these rules do not change the four existing login/refresh/logout/me endpoints.
+
+## 9. Contract Ownership
 
 - Every published API must have a documented request DTO, response DTO, status codes, and authorization requirement.
 - Owners of related features coordinate endpoint and DTO changes before merge.

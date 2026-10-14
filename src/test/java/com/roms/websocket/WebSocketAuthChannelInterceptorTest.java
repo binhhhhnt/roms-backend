@@ -4,7 +4,6 @@ import com.roms.entity.RefreshToken;
 import com.roms.entity.RestaurantTable;
 import com.roms.entity.ServiceSession;
 import com.roms.entity.User;
-import com.roms.enums.ServiceSessionStatus;
 import com.roms.enums.UserRole;
 import com.roms.repository.RefreshTokenRepository;
 import com.roms.repository.ServiceSessionRepository;

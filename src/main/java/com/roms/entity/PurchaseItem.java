@@ -12,10 +12,23 @@ import java.time.LocalDateTime;
 @Table(name = "purchase_items")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class PurchaseItem {
+
+    public PurchaseItem() {
+    }
+
+    public PurchaseItem(Long id, Purchase purchase, Ingredient ingredient, BigDecimal quantity,
+                        BigDecimal unitPrice, BigDecimal subtotal, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.purchase = purchase;
+        this.ingredient = ingredient;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+        this.subtotal = subtotal;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

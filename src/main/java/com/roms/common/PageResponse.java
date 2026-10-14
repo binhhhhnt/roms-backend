@@ -1,9 +1,7 @@
 package com.roms.common;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.domain.Page;
 
@@ -13,10 +11,19 @@ import java.util.function.Function;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class PageResponse<T> {
+
+    public PageResponse() {
+    }
+
+    public PageResponse(List<T> content, int page, int size, long totalElements, int totalPages) {
+        this.content = content != null ? content : Collections.emptyList();
+        this.page = page;
+        this.size = size;
+        this.totalElements = totalElements;
+        this.totalPages = totalPages;
+    }
 
     @Builder.Default
     private List<T> content = Collections.emptyList();

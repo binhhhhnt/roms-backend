@@ -2,7 +2,6 @@ package com.roms.security;
 
 import com.roms.entity.User;
 import com.roms.enums.UserRole;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -12,10 +11,26 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Triển khai UserDetails của Spring Security:
+ * Đóng gói toàn bộ thông tin của người dùng đang thực hiện request để lưu trữ trong SecurityContext.
+ * Cung cấp Role dưới dạng GrantedAuthority ("ROLE_" + role.name()).
+ */
 @Getter
-@AllArgsConstructor
 @Builder
 public class UserPrincipal implements UserDetails {
+
+    public UserPrincipal(Long id, String username, String password, String fullName,
+                         UserRole role, Long tableId, Long sessionId, boolean active) {
+        this.id = id;
+        this.username = username;
+        this.password = password;
+        this.fullName = fullName;
+        this.role = role;
+        this.tableId = tableId;
+        this.sessionId = sessionId;
+        this.active = active;
+    }
 
     private final Long id;
     private final String username;
@@ -26,6 +41,9 @@ public class UserPrincipal implements UserDetails {
     private final Long sessionId;
     private final boolean active;
 
+    /**
+     * Factory method tạo UserPrincipal từ User Entity và Session ID.
+     */
     public static UserPrincipal create(User user, Long sessionId) {
         Long tableId = (user.getTable() != null) ? user.getTable().getId() : null;
         return UserPrincipal.builder()

@@ -11,10 +11,21 @@ import java.time.LocalDateTime;
 @Table(name = "inventory_checks")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class InventoryCheck {
+
+    public InventoryCheck() {
+    }
+
+    public InventoryCheck(Long id, User checkedBy, LocalDateTime checkedAt, String note,
+                          LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.checkedBy = checkedBy;
+        this.checkedAt = checkedAt;
+        this.note = note;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

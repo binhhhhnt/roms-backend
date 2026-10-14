@@ -1,18 +1,24 @@
 package com.roms.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class ApiResponse<T> {
+
+    public ApiResponse() {
+    }
+
+    public ApiResponse(boolean success, String message, T data, ErrorPayload error) {
+        this.success = success;
+        this.message = message;
+        this.data = data;
+        this.error = error;
+    }
 
     private boolean success;
     private String message;

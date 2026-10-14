@@ -13,10 +13,22 @@ import java.time.LocalDateTime;
 @Table(name = "purchases")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class Purchase {
+
+    public Purchase() {
+    }
+
+    public Purchase(Long id, LocalDate purchaseDate, BigDecimal totalAmount, User createdBy,
+                    String note, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.purchaseDate = purchaseDate;
+        this.totalAmount = totalAmount != null ? totalAmount : BigDecimal.ZERO;
+        this.createdBy = createdBy;
+        this.note = note;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

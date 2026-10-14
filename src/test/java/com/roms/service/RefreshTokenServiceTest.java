@@ -2,7 +2,6 @@ package com.roms.service;
 
 import com.roms.entity.RefreshToken;
 import com.roms.entity.User;
-import com.roms.enums.UserRole;
 import com.roms.exception.UnauthorizedException;
 import com.roms.repository.RefreshTokenRepository;
 import com.roms.repository.UserRepository;

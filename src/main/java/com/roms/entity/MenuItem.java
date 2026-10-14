@@ -13,10 +13,24 @@ import java.time.LocalDateTime;
 @Table(name = "menu_items")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class MenuItem {
+
+    public MenuItem() {
+    }
+
+    public MenuItem(Long id, Category category, String name, String description, BigDecimal price,
+                    MenuItemStatus status, Boolean isFeatured, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.category = category;
+        this.name = name;
+        this.description = description;
+        this.price = price;
+        this.status = status != null ? status : MenuItemStatus.AVAILABLE;
+        this.isFeatured = isFeatured != null ? isFeatured : false;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

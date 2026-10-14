@@ -1,18 +1,25 @@
 package com.roms.dto.response;
 
 import com.roms.enums.UserRole;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class UserProfileResponse {
+
+    public UserProfileResponse() {
+    }
+
+    public UserProfileResponse(Long id, String username, String fullName, UserRole role, Long tableId) {
+        this.id = id;
+        this.username = username;
+        this.fullName = fullName;
+        this.role = role;
+        this.tableId = tableId;
+    }
 
     private Long id;
     private String username;
