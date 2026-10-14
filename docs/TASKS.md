@@ -25,8 +25,8 @@
 |---|---|---|---|---|
 | BE-005 | User/account management and authorization for five roles | QUANG | Todo | BE-028, BE-003, BE-006; `TABLE_ACCOUNT`, no roles/permissions tables; related ROMS-008–010 |
 | ROMS-001 | Login/authentication endpoint integration | BINH-DEV | Done | BE-006; includes token issuance/refresh/logout as approved by contracts |
-| BE-018 | Agree on forgot-password OTP delivery, expiry and retry workflow | QUANG | Todo | Coordinate Redis keys with BINH-DEV; requires team decisions |
-| BE-019 | Implement forgot/reset password with Redis TTL and hashed OTP verifier | QUANG | Todo | BE-006, BE-018, BE-030; related ROMS-002–003 |
+| BE-018 | Finalize forgot-password OTP delivery and validation workflow | QUANG | Todo | Approved: Gmail SMTP, 6-digit OTP, Redis verifier/hash with 5-minute TTL and max 5 failed attempts per issued OTP; coordinate existing Redis primitives with BINH-DEV and confirm endpoint DTOs |
+| BE-019 | Implement forgot/reset password with Gmail SMTP delivery and Redis OTP verification | QUANG | Todo | BE-006, BE-018, BE-030; Spring Boot Mail dependency/config, secure Gmail credentials, expiry/attempt enforcement and no account enumeration; ROMS-002–003 |
 | ROMS-004–006 | Change password, profile and authorization support APIs | QUANG | Todo | BE-005, BE-006; only applicable backend work |
 | BE-022 | Define Gemini assistant API contract and menu-context format | QUANG | Todo | BE-007, BE-032; approved API/AI requirements |
 | BE-023 | Implement Redis Gemini menu/recipe context caching and invalidation | QUANG | Todo | BE-007, BE-014, BE-022, BE-030; invalidate after commit; no live availability cache |
@@ -36,8 +36,8 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-007 | Implement categories, menu item CRUD, images and tablet menu read APIs | Member 3 | Todo | BE-028; ROMS-019–023, ROMS-025–026 |
-| BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Todo | BE-007, BE-014, BE-033; ROMS-056; no `available_quantity` or serving quota; check live availability |
+| BE-007 | Implement categories, menu item CRUD, Cloudinary menu-image integration and tablet menu read APIs | Member 3 | In Progress | BE-028; ROMS-019–023, ROMS-025–026; user-approved category GET/list/detail + OWNER POST/PUT category/menu + OWNER image upload/removal implemented; Cloudinary SDK/config, content/size validation, deterministic asset IDs, rollback cleanup, after-commit cache invalidation. No hard category/menu delete; menu status remains BE-008. 40 BE-007 tests and 109 non-DB suite tests pass with explicit Surefire 3.2.5; source/test compilation passed. Menu GET/tablet/sellability waits for BE-008 code user chose to supply. PostgreSQL/JWT-filter integration and live Cloudinary verification pending; no migrations run. See API_GUIDE Sections 6–7 |
+| BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Done | Implemented PATCH /api/menu-items/{id}/status (OWNER/KITCHEN_STAFF, 403 on DISCONTINUED for non-owner, Redis Gemini cache invalidation after commit) and GET /api/menu-items/{id}/sellability (live PostgreSQL recipe/stock check, no available_quantity/serving quota); 21/21 tests passed (111/111 project tests passed) |
 | BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Todo | BE-028, BE-006; ROMS-011–015, 017–018, 024, 036 |
 | BE-012 | Implement table transfer and transfer-history operations | QUANG | Todo | BE-009; ROMS-016 |
 
@@ -45,10 +45,10 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-010 | Implement Order/OrderItem creation, queries, atomic recipe-stock deduction and PENDING-only cancellation/restoration | BINH-DEV | Todo | BE-001, BE-007–009, BE-014, BE-033; deduct and record movements at creation; 409 if insufficient, restore via compensating movements; immutable items/quantities; ROMS-028–035, 042 |
-| BE-011 | Implement kitchen acceptance, cooking, ready/served item workflow and Order completion | BINH-DEV | Todo | BE-010; acceptance must NOT deduct stock again; Order stays `COOKING` until all non-cancelled items `COMPLETED`; ROMS-037–041 |
-| BE-021 | Publish and authorize relevant Order/Kitchen STOMP updates after DB commit | BINH-DEV | Todo | BE-011, BE-020, BE-031; coordinate table/session broadcasts with QUANG |
-| BE-027 | Test transitions, stock deduction/restoration, insufficient stock and concurrent Order creation/cancellation | BINH-DEV | Todo | BE-010–011, BE-014; prevent double deduction/restore; never auto-complete when no active items remain |
+| BE-010 | Implement Order/OrderItem creation, queries, atomic recipe-stock deduction and PENDING-only cancellation/restoration | BINH-DEV | Done | Implemented POST /api/orders (atomic stock deduction, negative ORDER_CONSUMPTION movements, 409 if insufficient), GET /api/orders, GET /api/orders/{id}, POST /api/orders/{id}/cancel & POST /api/orders/{id}/items/{itemId}/cancel (restores stock from history, positive compensating movements, double-restoration protection, STOMP event); 15/15 tests passed (126/126 project tests passed) |
+| BE-011 | Implement kitchen acceptance, cooking, ready/served item workflow and Order completion | BINH-DEV | Done | Implemented GET /api/kitchen/orders, GET /api/kitchen/orders/{id}, POST /api/kitchen/orders/{id}/accept (no stock re-deduction, 409 if not PENDING, STOMP event) and PATCH /api/kitchen/orders/{id}/items/{itemId}/status (PENDING->COOKING->READY->COMPLETED, role-based checks, auto parent order completion, zero-active items protection); 11/11 tests passed (137/137 project tests passed) |
+| BE-021 | Publish and authorize relevant Order/Kitchen STOMP updates after DB commit | BINH-DEV | Done | Implemented dedicated OrderEventPublisher with afterCommit transaction synchronization; publishes KitchenOrderEvent to /topic/kitchen/orders and OrderStatusChangedEvent to /topic/session/{sessionId}/orders on creation; publishes OrderStatusChangedEvent and OrderItemStatusChangedEvent to both kitchen and session destinations on status updates; 6/6 tests passed (143/143 project tests passed) |
+| BE-027 | Test transitions, stock deduction/restoration, insufficient stock and concurrent Order creation/cancellation | BINH-DEV | Done | Implemented OrderConcurrencyIntegrationTest (multi-threaded race conditions with pessimistic row locking, idempotent double-restore protection, end-to-end lifecycle, zero-active-items, mixed completion) plus unit edge cases in OrderServiceImplTest and KitchenServiceImplTest; 154/154 project tests passed |
 
 > Cart interactions (ROMS-027), success screens and other UI-only parts belong to the separate React project. Backend covers order validation, creation and retrieval required by those tickets.
 
@@ -71,7 +71,7 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-025 | Verify OTP, cache invalidation, STOMP authorization/delivery and Gemini availability | QUANG | Todo | BE-019, BE-021, BE-024; integration review with BINH-DEV |
+| BE-025 | Verify Gmail OTP delivery/TTL/attempt limits, cache invalidation, STOMP authorization/delivery and Gemini availability | QUANG | Todo | BE-019, BE-021, BE-024; integration review with BINH-DEV; verify 6-digit code, 5-minute expiry, 5 failed attempts, single use and no account enumeration |
 | BE-017 | Run cross-feature integration tests, schema/API contract review and release readiness | BINH-DEV | Todo | BE-025, BE-027 plus feature-owner verification; each owner tests their own feature |
 
 **Reserved ID:** `BE-013` (removed Reservation functionality; do not reuse).

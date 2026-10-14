@@ -292,3 +292,100 @@ curl -X POST http://localhost:8080/api/auth/logout \
   -H "Authorization: Bearer <access_token_nhận_được>" \
   -b cookies.txt
 ```
+
+## 6. API Đọc Danh Mục (BE-007)
+
+Hợp đồng đọc đã được duyệt: mọi vai trò đã xác thực được đọc. `TABLE_ACCOUNT` chỉ thấy danh mục có `isActive=true`; truy cập chi tiết danh mục inactive trả `404`, giống danh mục không tồn tại. Các vai trò staff và Owner được đọc cả danh mục inactive. Không yêu cầu service session cho hai API đọc này.
+
+- `GET /api/categories`: trả `ApiResponse<PageResponse<CategoryResponse>>`.
+- `GET /api/categories/{id}`: trả `ApiResponse<CategoryResponse>`.
+- Header: `Authorization: Bearer <accessToken>`.
+- DTO: `id`, `name`, `description` (có thể null), `displayOrder`, `isActive`.
+- Danh sách nhận `page` (bắt đầu từ 0), `size`, `sort`; mặc định page 0, size 20, sort `displayOrder,asc`. Kích thước trang tối đa 100; yêu cầu lớn hơn được giới hạn xuống 100.
+- Sort hỗ trợ `id`, `name`, `description`, `displayOrder`, `isActive`; ví dụ `sort=name,desc`. Tự thêm `id,asc` nếu chưa có sort theo id để bảo đảm thứ tự ổn định.
+- Lọc danh mục inactive của tablet được thực hiện trước phân trang; `totalElements` chỉ tính danh mục được phép đọc.
+- Thành công: `200`. Chưa xác thực: `401`. ID không đúng kiểu/không dương hoặc sort field không hỗ trợ: `400`. Không tìm thấy hoặc tablet đọc inactive: `404`. Lỗi theo envelope chung.
+
+Ví dụ danh sách:
+
+```bash
+curl "http://localhost:8080/api/categories?page=0&size=20&sort=displayOrder,asc" \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+```json
+{
+  "success": true,
+  "message": "Categories retrieved successfully",
+  "data": {
+    "content": [
+      { "id": 1, "name": "Món Chính", "description": null, "displayOrder": 1, "isActive": true }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Chi tiết trả cùng DTO trực tiếp trong `data`, với message `Category retrieved successfully`.
+
+## 7. API Ghi Catalog và Ảnh Cloudinary (BE-007)
+
+Hợp đồng ghi đã được duyệt: chỉ `OWNER` được tạo/cập nhật danh mục, món và upload/xóa ảnh. Dùng Bearer JWT hiện có; thiếu xác thực trả `401`, vai trò khác trả `403`. Không có API xóa cứng category/menu. Ngừng hoạt động category bằng `isActive=false`; ngừng bán món qua BE-008 của BINH-DEV.
+
+| Method | Endpoint | Thành công |
+|---|---|---|
+| POST | `/api/categories` | 201, Location và CategoryResponse |
+| PUT | `/api/categories/{id}` | 200, CategoryResponse |
+| POST | `/api/menu-items` | 201, Location và MenuItemResponse |
+| PUT | `/api/menu-items/{id}` | 200, MenuItemResponse |
+| POST | `/api/menu-items/{menuItemId}/images` | 201, Location và MenuItemImageResponse |
+| DELETE | `/api/menu-items/{menuItemId}/images/{imageId}` | 204, body rỗng |
+
+Response JSON dùng `ApiResponse<T>`. Request không hợp lệ trả `400`, resource không tồn tại trả `404`; lỗi provider/DB dùng lỗi `500` chung không tiết lộ chi tiết nội bộ.
+
+### 7.1 Category Write Request
+
+POST và PUT dùng cùng payload; PUT là cập nhật đầy đủ các trường được phép:
+
+```json
+{"name":"Món Chính","description":"Món ăn chính","displayOrder":1,"isActive":true}
+```
+
+`name` bắt buộc, không trắng, tối đa 100 ký tự; `description` nullable, tối đa 255 ký tự; `displayOrder` và `isActive` bắt buộc. Không áp đặt unique tên vì schema không quy định. Tên được trim. Category có thể ngừng hoạt động mà vẫn giữ các món/lịch sử liên quan.
+
+### 7.2 Menu Item Write Request
+
+```json
+{"categoryId":1,"name":"Phở Bò","description":"Phở bò truyền thống","price":65000.00,"isFeatured":true}
+```
+
+`categoryId` dương, bắt buộc và phải tồn tại; `name` không trắng, tối đa 255 ký tự; `description` nullable; `price` bắt buộc, không âm, tối đa 10 chữ số phần nguyên và 2 chữ số thập phân; `isFeatured` bắt buộc. Tên được trim. Tạo món mặc định `AVAILABLE`; PUT giữ nguyên status. Payload không có trường ghi status, recipe, stock, available_quantity hay audit.
+
+MenuItemResponse gồm `id`, `categoryId`, `name`, `description`, `price`, `isFeatured`, `status`. Sửa giá món không cập nhật snapshot giá của OrderItem.
+
+### 7.3 Ảnh Menu
+
+Upload multipart có part `file` và query/form parameter `displayOrder` (mặc định 0). Chấp nhận JPEG/PNG/WebP tối đa 5 MB mỗi file; kiểm tra content type và chữ ký file trước khi gửi provider, Cloudinary xử lý/kiểm tra ảnh thực tế. Giới hạn multipart request là 6 MB.
+
+```bash
+curl -X POST http://localhost:8080/api/menu-items/1/images \
+  -H "Authorization: Bearer <accessToken>" \
+  -F "file=@food.png;type=image/png" -F "displayOrder=0"
+```
+
+MenuItemImageResponse gồm `id`, `menuItemId`, `imageUrl`, `displayOrder`. PostgreSQL chỉ lưu URL và metadata theo schema hiện có.
+
+Cloudinary SDK `cloudinary-http5:2.3.0` dùng public_id `roms/menu-items/{menuItemId}/images/{imageId}` cho ảnh được tạo bởi API này, không thêm cột schema. Credentials lấy từ `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`; không cấu hình sẽ trả lỗi khi gọi chức năng ảnh, không yêu cầu credentials để dùng API catalog. Hướng dẫn SDK: https://cloudinary.com/documentation/java_integration.
+
+Upload chạy trong transaction; metadata tạm chưa commit dùng để lấy ID. Khi rollback, thử xóa asset bù; cleanup thất bại chỉ ghi log asset ID, có thể còn ảnh orphan cần xử lý vận hành. Xóa ảnh kiểm tra đúng menu, khóa ghi theo menu, xóa asset trước metadata; provider lỗi thì giữ metadata để thử lại. Nếu provider đã xóa nhưng DB rollback, metadata có thể tạm trỏ tới ảnh đã mất; lần xóa lại chấp nhận provider `not found`. Không có transaction phân tán hoặc bảo đảm cleanup khi process bị dừng đột ngột. Ảnh legacy không theo public_id này cần được đối chiếu trước khi dùng API xóa.
+
+Thay đổi catalog và ảnh đăng ký invalidate menu context sau commit; rollback không invalidate. Tái sử dụng cache primitive hiện có; lỗi Redis invalidation vẫn tuân theo cơ chế ghi log/TTL hiện tại, chưa có retry bền vững.
+
+### 7.4 Phạm Vi Chưa Hoàn Tất
+
+GET menu list/detail cho tablet và tích hợp live sellability đang chờ mã BE-008 do người dùng cung cấp. Không tự triển khai thuật toán recipe/stock hoặc API status thuộc BINH-DEV. Các endpoint GET menu chưa được công bố trong checkout này.
+
+Đã kiểm tra biên dịch và 40 test BE-007 (service, mapper qua workflow, API standalone, Cloudinary mock); suite không kết nối DB có 109 test pass. Chưa chạy PostgreSQL/Flyway integration, chuỗi filter JWT thực tế cho các endpoint mới hoặc Cloudinary smoke test. Dùng Surefire 3.2.5 trực tiếp để tránh cache mặc định 3.5.6 thiếu thành phần; không thay cấu hình runner trong pom.

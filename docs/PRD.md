@@ -40,9 +40,9 @@ Authorization must be enforced by the backend. The current V1 schema has **no** 
 
 | Domain | Required behavior |
 |---|---|
-| Authentication | Sign-in, JWT, password hashing, hashed refresh tokens and rotation, account-specific session policies, logout, and forgot-password OTP |
+| Authentication | Sign-in, JWT, password hashing, hashed refresh tokens and rotation, account-specific session policies, logout, and forgot-password email OTP (6 digits, 5-minute expiry, maximum 5 failed verification attempts per issued OTP) |
 | User management | Manage users and approved role-based access |
-| Menu | Categories, dishes, images, recipes (dish–ingredient associations) |
+| Menu | Categories, dishes, Cloudinary-hosted menu images, recipes (dish–ingredient associations) |
 | Menu availability | Kitchen can manually mark dishes temporarily unavailable; ingredient-based out-of-stock is derived from current stock and recipes |
 | Table & session | Table administration, start/close service sessions, staff-assisted opening, table transfers and history |
 | Ordering | Customer/staff create orders, manage items, apply validated status transitions and cancellations |
@@ -114,6 +114,8 @@ Authorization must be enforced by the backend. The current V1 schema has **no** 
 - Purchases record goods already purchased and received, not pending purchase orders.
 - Authorized staff may correct incorrect purchase records. Corrections affecting stock must update inventory balances and append traceable stock movements atomically.
 - Historical stock movements must not be edited or deleted.
+- Forgot-password OTP is delivered through Gmail SMTP: a securely generated 6-digit code, valid for 5 minutes, with at most 5 failed verification attempts per issued OTP. Store only an OTP verifier/hash and retry/expiry state in Redis; invalidate the OTP on successful use or when attempts are exhausted. Do not reveal whether an email/account exists in public recovery responses.
+- Menu images are stored in Cloudinary; PostgreSQL `menu_item_images` stores image references/URLs and existing approved metadata, not binary image contents. Upload and deletion must be authorized and validated; do not invent database columns without an approved migration.
 - Redis stores expiring password-reset OTP verification data and relatively stable menu/ingredient context for Gemini.
 - Invalidate menu-context cache after committed menu, recipe, category or ingredient description changes; derive live sellability from menu status, recipe and current ingredient stock in PostgreSQL for recommendations and order placement.
 - Realtime notifications do not replace REST operations or the persistent PostgreSQL state.
