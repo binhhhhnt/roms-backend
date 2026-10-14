@@ -10,4 +10,5 @@ import java.util.Optional;
 @Repository
 public interface ServiceSessionRepository extends JpaRepository<ServiceSession, Long> {
     Optional<ServiceSession> findByTableIdAndStatus(Long tableId, ServiceSessionStatus status);
+    long countByStatus(ServiceSessionStatus status);
 }

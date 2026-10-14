@@ -360,7 +360,181 @@ Kiểm tra trực tiếp từ PostgreSQL xem món ăn có đủ điều kiện b
 
 ---
 
-## 5. Hướng Dẫn Kết Nối WebSocket / STOMP Realtime
+## 5. Chi Tiết Các API Quản Lý Chi Phí (`/api/expenses`)
+
+Tất cả các API chi phí yêu cầu quyền **`OWNER`** (`Authorization: Bearer <token_chu_nha_hang>`).
+
+### 5.1 Tạo Chi Phí Vận Hành Mới (`POST /api/expenses`)
+- **Headers:** `Authorization: Bearer <accessToken>`, `Content-Type: application/json`
+- **Request Body:**
+```json
+{
+  "name": "Tiền điện tháng 10/2026",
+  "amount": 3500000.00,
+  "expenseDate": "2026-10-15",
+  "note": "Hóa đơn điện lực EVN"
+}
+```
+- **Response (`201 Created`):**
+```json
+{
+  "success": true,
+  "message": "Expense created successfully",
+  "data": {
+    "id": 1,
+    "name": "Tiền điện tháng 10/2026",
+    "amount": 3500000.00,
+    "expenseDate": "2026-10-15",
+    "note": "Hóa đơn điện lực EVN",
+    "createdAt": "2026-10-15T08:30:00",
+    "createdBy": "owner",
+    "cancelledAt": null,
+    "cancelledBy": null,
+    "cancelReason": null,
+    "cancelled": false
+  }
+}
+```
+
+### 5.2 Lấy Danh Sách Chi Phí (`GET /api/expenses`)
+- **Query Params:**
+  - `startDate`: Ngày bắt đầu (`YYYY-MM-DD`, tùy chọn)
+  - `endDate`: Ngày kết thúc (`YYYY-MM-DD`, tùy chọn)
+  - `status`: `ALL` (mặc định), `ACTIVE` (chưa hủy), `CANCELLED` (đã hủy)
+  - `page`: Số trang (0-indexed, mặc định 0)
+  - `size`: Kích thước trang (mặc định 20)
+  - `sort`: Trường sắp xếp (ví dụ: `expenseDate,desc`)
+- **Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Expenses retrieved successfully",
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "name": "Tiền điện tháng 10/2026",
+        "amount": 3500000.00,
+        "expenseDate": "2026-10-15",
+        "note": "Hóa đơn điện lực EVN",
+        "createdAt": "2026-10-15T08:30:00",
+        "createdBy": "owner",
+        "cancelled": false
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### 5.3 Cập Nhật Chi Phí (`PUT /api/expenses/{id}`)
+- **Request Body:**
+```json
+{
+  "name": "Tiền điện tháng 10/2026 (đã bổ sung)",
+  "amount": 3750000.00,
+  "expenseDate": "2026-10-15",
+  "note": "Bổ sung phí phạt chậm nộp"
+}
+```
+- **Response:** `200 OK` nếu thành công; `409 Conflict` nếu chi phí đã bị hủy.
+
+### 5.4 Hủy Chi Phí (`POST /api/expenses/{id}/cancel`)
+- Hủy mềm (soft-cancel), lưu lại vết kiểm toán `cancelled_at`, `cancelled_by`, `cancel_reason`.
+- **Request Body:**
+```json
+{
+  "reason": "Nhập nhầm số tiền và trùng hóa đơn"
+}
+```
+- **Response:** `200 OK` nếu thành công; `409 Conflict` nếu chi phí này trước đó đã bị hủy.
+
+---
+
+## 6. Chi Tiết Các API Thống Kê & Dashboard (`/api/dashboard`)
+
+Tất cả các endpoint thống kê yêu cầu quyền **`OWNER`**.
+
+### 6.1 Tổng Quan Dashboard (`GET /api/dashboard/overview`)
+- **Query Params:** `startDate` (`YYYY-MM-DD`), `endDate` (`YYYY-MM-DD`). Nếu không truyền, mặc định là 30 ngày gần nhất tính đến hôm nay.
+- **Quy tắc tính toán:**
+  - `totalRevenue`: Tổng tiền món ăn từ các đơn hàng thành công (`COMPLETED`).
+  - `totalExpenses`: Tổng chi phí vận hành còn hiệu lực (bỏ qua chi phí đã hủy).
+  - `totalPurchases`: Tổng chi phí nhập hàng trong kỳ.
+  - `netProfit`: Lợi nhuận ròng = `totalRevenue - (totalExpenses + totalPurchases)`.
+- **Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Dashboard overview retrieved successfully",
+  "data": {
+    "startDate": "2026-10-01",
+    "endDate": "2026-10-15",
+    "totalRevenue": 50000000.00,
+    "totalExpenses": 10000000.00,
+    "totalPurchases": 15000000.00,
+    "netProfit": 25000000.00,
+    "completedOrdersCount": 120,
+    "cancelledOrdersCount": 5,
+    "activeSessionsCount": 8,
+    "lowStockIngredientsCount": 2
+  }
+}
+```
+
+### 6.2 Top Món Bán Chạy Nhất (`GET /api/dashboard/best-selling`)
+- **Query Params:** `startDate`, `endDate`, `limit` (mặc định: 5).
+- **Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Best selling dishes retrieved successfully",
+  "data": [
+    {
+      "menuItemId": 1,
+      "menuItemName": "Phở Bò Tái Nạm",
+      "quantitySold": 85,
+      "totalRevenue": 5525000.00
+    },
+    {
+      "menuItemId": 2,
+      "menuItemName": "Cơm Tấm Sườn Bì Chả",
+      "quantitySold": 60,
+      "totalRevenue": 3300000.00
+    }
+  ]
+}
+```
+
+### 6.3 Biến Động Doanh Thu & Chi Phí Hàng Ngày (`GET /api/dashboard/trends`)
+- **Query Params:** `startDate`, `endDate`.
+- **Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Daily trends retrieved successfully",
+  "data": [
+    {
+      "date": "2026-10-01",
+      "revenue": 1000000.00,
+      "expenses": 300000.00,
+      "purchases": 200000.00,
+      "netProfit": 500000.00
+    }
+  ]
+}
+```
+
+### 6.4 Xuất File Báo Cáo Tài Chính Hàng Ngày CSV (`GET /api/dashboard/export`)
+- **Query Params:** `startDate`, `endDate`.
+- **Response:** File `text/csv; charset=UTF-8` đính kèm có UTF-8 BOM (`\uEF\uBB\uBF`), header `Content-Disposition: attachment; filename="daily-financial-report-YYYY-MM-DD.csv"`. Mở trực tiếp bằng Microsoft Excel không bị lỗi font tiếng Việt.
+
+---
+
+## 7. Hướng Dẫn Kết Nối WebSocket / STOMP Realtime
 
 Hệ thống đã hoàn thiện broker STOMP in-memory hỗ trợ cập nhật dữ liệu tức thì cho Bếp, Bàn ăn và Nhân viên phục vụ.
 
@@ -387,9 +561,9 @@ Hệ thống đã hoàn thiện broker STOMP in-memory hỗ trợ cập nhật d
 
 ---
 
-## 6. Mẫu Gọi API Bằng cURL
+## 8. Mẫu Gọi API Bằng cURL
 
-### 6.1 Đăng nhập (Lưu Cookie tự động ra file `cookies.txt`)
+### 8.1 Đăng nhập (Lưu Cookie tự động ra file `cookies.txt`)
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
@@ -397,27 +571,27 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"username":"owner","password":"Password@123"}'
 ```
 
-### 6.2 Xem Profile hiện tại
+### 8.2 Xem Profile hiện tại
 ```bash
 curl -X GET http://localhost:8080/api/auth/me \
   -H "Authorization: Bearer <access_token_nhận_được>"
 ```
 
-### 6.3 Làm mới Access Token (Gửi kèm Cookie từ file)
+### 8.3 Làm mới Access Token (Gửi kèm Cookie từ file)
 ```bash
 curl -X POST http://localhost:8080/api/auth/refresh \
   -b cookies.txt \
   -c cookies.txt
 ```
 
-### 6.4 Đăng xuất
+### 8.4 Đăng xuất
 ```bash
 curl -X POST http://localhost:8080/api/auth/logout \
   -H "Authorization: Bearer <access_token_nhận_được>" \
   -b cookies.txt
 ```
 
-### 6.5 Đổi trạng thái món ăn (Kitchen/Owner)
+### 8.5 Đổi trạng thái món ăn (Kitchen/Owner)
 ```bash
 curl -X PATCH http://localhost:8080/api/menu-items/1/status \
   -H "Authorization: Bearer <access_token_nhận_được>" \
@@ -425,8 +599,30 @@ curl -X PATCH http://localhost:8080/api/menu-items/1/status \
   -d '{"status":"TEMPORARILY_UNAVAILABLE"}'
 ```
 
-### 6.6 Kiểm tra khả năng phục vụ món ăn (Tất cả vai trò)
+### 8.6 Kiểm tra khả năng phục vụ món ăn (Tất cả vai trò)
 ```bash
 curl -X GET "http://localhost:8080/api/menu-items/1/sellability?quantity=2" \
   -H "Authorization: Bearer <access_token_nhận_được>"
 ```
+
+### 8.7 Tạo Chi Phí Mới (Owner)
+```bash
+curl -X POST http://localhost:8080/api/expenses \
+  -H "Authorization: Bearer <access_token_owner>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Tiền gas tháng 10","amount":1200000,"expenseDate":"2026-10-15","note":"Bình gas 45kg"}'
+```
+
+### 8.8 Lấy Tổng Quan Dashboard (Owner)
+```bash
+curl -X GET "http://localhost:8080/api/dashboard/overview?startDate=2026-10-01&endDate=2026-10-15" \
+  -H "Authorization: Bearer <access_token_owner>"
+```
+
+### 8.9 Xuất Báo Cáo Tài Chính CSV (Owner)
+```bash
+curl -X GET "http://localhost:8080/api/dashboard/export?startDate=2026-10-01&endDate=2026-10-15" \
+  -H "Authorization: Bearer <access_token_owner>" \
+  -o daily_report.csv
+```
+

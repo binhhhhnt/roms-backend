@@ -17,4 +17,7 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Ingredient i WHERE i.id = :id")
     Optional<Ingredient> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("SELECT COUNT(i) FROM Ingredient i WHERE i.isActive = true AND i.minimumStock IS NOT NULL AND i.currentStock <= i.minimumStock")
+    long countLowStockIngredients();
 }

@@ -25,8 +25,8 @@
 |---|---|---|---|---|
 | BE-005 | User/account management and authorization for five roles | QUANG | Todo | BE-028, BE-003, BE-006; `TABLE_ACCOUNT`, no roles/permissions tables; related ROMS-008–010 |
 | ROMS-001 | Login/authentication endpoint integration | BINH-DEV | Done | BE-006; includes token issuance/refresh/logout as approved by contracts |
-| BE-018 | Agree on forgot-password OTP delivery, expiry and retry workflow | QUANG | Todo | Coordinate Redis keys with BINH-DEV; requires team decisions |
-| BE-019 | Implement forgot/reset password with Redis TTL and hashed OTP verifier | QUANG | Todo | BE-006, BE-018, BE-030; related ROMS-002–003 |
+| BE-018 | Finalize forgot-password OTP delivery and validation workflow | QUANG | Todo | Approved: Gmail SMTP, 6-digit OTP, Redis verifier/hash with 5-minute TTL and max 5 failed attempts per issued OTP; coordinate existing Redis primitives with BINH-DEV and confirm endpoint DTOs |
+| BE-019 | Implement forgot/reset password with Gmail SMTP delivery and Redis OTP verification | QUANG | Todo | BE-006, BE-018, BE-030; Spring Boot Mail dependency/config, secure Gmail credentials, expiry/attempt enforcement and no account enumeration; ROMS-002–003 |
 | ROMS-004–006 | Change password, profile and authorization support APIs | QUANG | Todo | BE-005, BE-006; only applicable backend work |
 | BE-022 | Define Gemini assistant API contract and menu-context format | QUANG | Todo | BE-007, BE-032; approved API/AI requirements |
 | BE-023 | Implement Redis Gemini menu/recipe context caching and invalidation | QUANG | Todo | BE-007, BE-014, BE-022, BE-030; invalidate after commit; no live availability cache |
@@ -36,7 +36,7 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-007 | Implement categories, menu item CRUD, images and tablet menu read APIs | Member 3 | Todo | BE-028; ROMS-019–023, ROMS-025–026 |
+| BE-007 | Implement categories, menu item CRUD, Cloudinary menu-image integration and tablet menu read APIs | Member 3 | Todo | BE-028; ROMS-019–023, ROMS-025–026; upload/validation/removal via backend, save URLs/references using existing `menu_item_images` schema; confirm API contract and Cloudinary credentials/config ownership |
 | BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Done | Implemented PATCH /api/menu-items/{id}/status (OWNER/KITCHEN_STAFF, 403 on DISCONTINUED for non-owner, Redis Gemini cache invalidation after commit) and GET /api/menu-items/{id}/sellability (live PostgreSQL recipe/stock check, no available_quantity/serving quota); 21/21 tests passed (111/111 project tests passed) |
 | BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Todo | BE-028, BE-006; ROMS-011–015, 017–018, 024, 036 |
 | BE-012 | Implement table transfer and transfer-history operations | QUANG | Todo | BE-009; ROMS-016 |
@@ -64,14 +64,14 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-026 | Expense list/create/update/cancel APIs | Member 5 | Todo | BE-028; ROMS-061–062; preserve cancellation audit (`cancelled_at`) |
-| BE-016 | Dashboard/reporting queries and exports | Member 5 | Todo | Relevant operational data; ROMS-007, ROMS-063–067; payments/revenue calculations only as supported by approved schema/requirements |
+| BE-026 | Expense list/create/update/cancel APIs | Member 5 | Done | Implemented POST /api/expenses (201 Created, OWNER only, audit created_by), GET /api/expenses (pagination, date range & status filters), GET /api/expenses/{id}, PUT /api/expenses/{id} (409 if cancelled), and POST /api/expenses/{id}/cancel (soft cancel, audit cancelled_at/by/reason, 409 if already cancelled); 23/23 unit and controller slice tests passed (12 service + 11 controller) |
+| BE-016 | Dashboard/reporting queries and exports | Member 5 | Done | Implemented GET /api/dashboard/overview (revenue from completed items, operating cost from active expenses + purchases, net profit, completed/cancelled order counts, active sessions, low-stock count), GET /api/dashboard/best-selling (top dishes ranked by quantity sold), GET /api/dashboard/trends (daily revenue, expenses, purchases, net profit aggregation), and GET /api/dashboard/export (CSV export with UTF-8 BOM, OWNER only); 12 unit and controller slice tests passed (5 service + 7 controller). Total MEMBER_5 test coverage: 35/35 tests passed. |
 
 ## 7. Integration and Team Verification
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-025 | Verify OTP, cache invalidation, STOMP authorization/delivery and Gemini availability | QUANG | Todo | BE-019, BE-021, BE-024; integration review with BINH-DEV |
+| BE-025 | Verify Gmail OTP delivery/TTL/attempt limits, cache invalidation, STOMP authorization/delivery and Gemini availability | QUANG | Todo | BE-019, BE-021, BE-024; integration review with BINH-DEV; verify 6-digit code, 5-minute expiry, 5 failed attempts, single use and no account enumeration |
 | BE-017 | Run cross-feature integration tests, schema/API contract review and release readiness | BINH-DEV | Todo | BE-025, BE-027 plus feature-owner verification; each owner tests their own feature |
 
 **Reserved ID:** `BE-013` (removed Reservation functionality; do not reuse).
