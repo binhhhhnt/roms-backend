@@ -64,8 +64,8 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-026 | Expense list/create/update/cancel APIs | Member 5 | Todo | BE-028; ROMS-061–062; preserve cancellation audit (`cancelled_at`) |
-| BE-016 | Dashboard/reporting queries and exports | Member 5 | Todo | Relevant operational data; ROMS-007, ROMS-063–067; payments/revenue calculations only as supported by approved schema/requirements |
+| BE-026 | Expense list/create/update/cancel APIs | Member 5 | Done | Implemented POST /api/expenses (201 Created, OWNER only, audit created_by), GET /api/expenses (pagination, date range & status filters), GET /api/expenses/{id}, PUT /api/expenses/{id} (409 if cancelled), and POST /api/expenses/{id}/cancel (soft cancel, audit cancelled_at/by/reason, 409 if already cancelled); 23/23 unit and controller slice tests passed (12 service + 11 controller) |
+| BE-016 | Dashboard/reporting queries and exports | Member 5 | Done | Implemented GET /api/dashboard/overview (revenue from completed items, operating cost from active expenses + purchases, net profit, completed/cancelled order counts, active sessions, low-stock count), GET /api/dashboard/best-selling (top dishes ranked by quantity sold), GET /api/dashboard/trends (daily revenue, expenses, purchases, net profit aggregation), and GET /api/dashboard/export (CSV export with UTF-8 BOM, OWNER only); 12 unit and controller slice tests passed (5 service + 7 controller). Total MEMBER_5 test coverage: 35/35 tests passed. |
 
 ## 7. Integration and Team Verification
 
