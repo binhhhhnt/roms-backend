@@ -31,7 +31,8 @@ class CatalogWriteServiceTest {
         cache = mock(MenuContextCacheService.class);
         var invalidator = new MenuContextInvalidator(cache);
         categoryService = new CategoryServiceImpl(categories, new CategoryMapper(), invalidator);
-        menuService = new MenuItemServiceImpl(menus, categories, new MenuItemMapper(), invalidator);
+        menuService = new MenuItemServiceImpl(menus, categories, new MenuItemMapper(), invalidator,
+                mock(MenuItemImageRepository.class), new MenuItemImageMapper(), new CategoryMapper(), mock(MenuAvailabilityService.class));
         TransactionSynchronizationManager.initSynchronization();
         authenticate(UserRole.OWNER);
     }

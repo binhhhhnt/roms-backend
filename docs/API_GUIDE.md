@@ -430,3 +430,75 @@ curl -X PATCH http://localhost:8080/api/menu-items/1/status \
 curl -X GET "http://localhost:8080/api/menu-items/1/sellability?quantity=2" \
   -H "Authorization: Bearer <access_token_nhận_được>"
 ```
+
+## 7. API Catalog và Menu Tablet — BE-007
+
+Các API đều dùng `Authorization: Bearer <accessToken>` và envelope chung. Mọi tài khoản đã xác thực được đọc; chỉ OWNER được ghi danh mục, món và ảnh. Không có xóa cứng danh mục/món: category ngừng hoạt động bằng `isActive=false`; món ngừng bán qua PATCH status của BE-008.
+
+### 7.1 Danh Mục
+
+- `GET /api/categories`: `ApiResponse<PageResponse<CategoryResponse>>`; page bắt đầu 0, mặc định size 20, tối đa 100, sort mặc định `displayOrder,asc` và thêm `id,asc` để ổn định.
+- `GET /api/categories/{id}`: chi tiết CategoryResponse.
+- TABLE_ACCOUNT chỉ thấy category active; chi tiết inactive trả 404 như category không tồn tại. Staff/Owner được đọc cả inactive; không cần active service session để đọc catalog.
+- `POST /api/categories` trả 201 + Location; `PUT /api/categories/{id}` trả 200. Payload đầy đủ: `name`, `description`, `displayOrder`, `isActive`. Tên không trắng, tối đa 100 ký tự; description nullable, tối đa 255; displayOrder/isActive bắt buộc.
+- CategoryResponse gồm `id`, `name`, `description`, `displayOrder`, `isActive`.
+
+### 7.2 Đọc Danh Sách và Chi Tiết Món
+
+| Method | Endpoint | Response |
+|---|---|---|
+| GET | `/api/menu-items` | 200, ApiResponse với PageResponse trong data |
+| GET | `/api/menu-items/{id}` | 200, ApiResponse với MenuItemReadResponse trong data |
+
+Danh sách nhận `page`, `size`, `sort`, `categoryId` (optional, dương), `quantity` (mặc định 1, phải dương). Mặc định page 0, size 20; size lớn hơn 100 được giới hạn còn 100. Sort hỗ trợ `id`, `name`, `price`, `status`, `isFeatured`; mặc định `name,asc`, thêm `id,asc` nếu chưa có sort id. Category không có món khớp trả trang rỗng. Chi tiết nhận `quantity` theo cùng quy tắc.
+
+TABLE_ACCOUNT chỉ thấy món thuộc category active và status khác DISCONTINUED. Món TEMPORARILY_UNAVAILABLE hoặc thiếu nguyên liệu vẫn được hiển thị với availability.sellable=false. Bộ lọc visibility nằm trong truy vấn DB trước phân trang, nên totalElements không tính món bị ẩn. Chi tiết bị ẩn trả 404. Staff/Owner được đọc cả category inactive và món DISCONTINUED.
+
+MenuItemReadResponse gồm thông tin món, `category` (CategoryResponse), `images` và `availability`. Ảnh sắp theo displayOrder rồi id; không có ảnh trả `[]`. Availability gọi service BE-008 từ PostgreSQL cho mỗi món ở mỗi lần đọc; không cache, không trừ kho và không tạo Order. Chỉ trả kết quả khả năng bán, không trả insufficientIngredients/currentStock chi tiết trong DTO đọc catalog. Kết quả tại thời điểm đọc không giữ chỗ; tạo Order phải kiểm tra lại tồn kho.
+
+```json
+{
+  "success": true,
+  "message": "Menu item retrieved successfully",
+  "data": {
+    "id": 1,
+    "category": {"id": 1, "name": "Món Chính", "description": null, "displayOrder": 1, "isActive": true},
+    "name": "Phở Bò",
+    "description": "Phở bò truyền thống",
+    "price": 65000.00,
+    "isFeatured": true,
+    "status": "AVAILABLE",
+    "images": [],
+    "availability": {"sellable": true, "reason": null, "requestedQuantity": 1, "maxPossibleQuantity": 10}
+  }
+}
+```
+
+Danh sách dùng cùng DTO trong `data.content`, message `Menu items retrieved successfully`. `maxPossibleQuantity` là số lượng suy ra theo BE-008, có thể null; không phải quota/available_quantity lưu trên món.
+
+```bash
+curl "http://localhost:8080/api/menu-items?categoryId=1&page=0&size=20&sort=price,asc&quantity=2" \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+401 khi thiếu/sai/hết hạn JWT, session bị thu hồi hoặc account inactive; 400 cho ID/query sai kiểu, ID/quantity không dương hoặc sort field không hỗ trợ; 404 cho chi tiết không tồn tại/bị ẩn. Validation không sửa shared auth hoặc BE-008.
+
+### 7.3 Ghi Món và Ảnh
+
+POST `/api/menu-items` trả 201 + Location; PUT `/api/menu-items/{id}` trả 200. Payload: `categoryId`, `name`, `description`, `price`, `isFeatured`; category phải tồn tại, tên không trắng tối đa 255 ký tự, giá không âm và phù hợp NUMERIC(12,2), isFeatured bắt buộc. Tạo món mặc định AVAILABLE; PUT không sửa status hoặc giá snapshot OrderItem. DTO ghi trả MenuItemResponse hiện có, không đổi thành DTO đọc.
+
+POST multipart `/api/menu-items/{menuItemId}/images` nhận part `file`, parameter `displayOrder` mặc định 0, trả 201 + Location và MenuItemImageResponse. DELETE `/api/menu-items/{menuItemId}/images/{imageId}` trả 204 body rỗng; chỉ được thao tác ảnh thuộc đúng món. Chấp nhận JPEG/PNG/WebP tối đa 5 MB, kiểm tra content type/chữ ký, provider kiểm tra ảnh thực tế. Multipart request tối đa 6 MB.
+
+Credentials: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` trong biến môi trường hoặc .env được Git bỏ qua. Public ID của ảnh API tạo: `roms/menu-items/{menuItemId}/images/{imageId}`, không thêm schema. Rollback upload thử xóa asset bù; provider xóa lỗi giữ metadata để retry. Cleanup không phải transaction phân tán: mất process hoặc provider lỗi có thể để lại orphan; xóa provider thành công nhưng DB rollback có thể để metadata trỏ ảnh mất. Lần xóa lại chấp nhận provider not found. Ảnh legacy cần đối chiếu public ID trước khi dùng API xóa.
+
+Catalog/ảnh invalidation context sau commit, không khi rollback; tái sử dụng primitive Redis hiện có. Menu/category và ảnh đọc theo truy vấn catalog + batch ảnh; live sellability hiện dùng API một món của BE-008 nên số truy vấn recipe tăng theo số món trong trang (trang được giới hạn 100). Không thêm thuật toán hoặc batch contract vào BE-008 của owner khác.
+
+### 7.4 Kiểm Chứng và Review
+
+Test BE-007 gồm service/API, JWT filter và SecurityConfig thật với repository mock, integration BE-008 thật với recipe/stock mock, kiểm tra truy vấn PostgreSQL chỉ đọc và Cloudinary upload/delete fixture riêng. Test database bật `spring.flyway.enabled=false` và `ddl-auto=validate`; không tạo fixture DB hoặc chạy migration.
+
+Hai test ngoài hệ thống là opt-in: `MenuCatalogPostgresReadTest` cần `-Droms.test.postgres=true`; `CloudinaryLiveSmokeTest` cần `-Droms.test.cloudinary=true`. Cloudinary fixture có public ID UUID dưới `roms/be007-smoke/` và luôn thử cleanup; không ghi bảng menu_item_images. Credentials và error details provider không xuất ra log kiểm thử.
+
+BE-007 hoàn tất phần implementation theo hợp đồng hiện được duyệt, chờ review trước khi đánh dấu Done. Chưa chạy các integration test ghi DB/order/kitchen của owner khác trong lượt này.
+
+Kết quả ngày 2026-10-15: biên dịch thành công, 165/165 test regression không dùng DB pass (54 test BE-007), thêm 2/2 kiểm tra PostgreSQL/Cloudinary thật pass; tổng 56 kiểm tra BE-007. Dùng Surefire 3.2.5 trực tiếp do runner mặc định 3.5.6 thiếu thành phần trong cache, không sửa pom để đổi runner.
