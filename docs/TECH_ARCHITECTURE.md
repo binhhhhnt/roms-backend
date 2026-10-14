@@ -16,6 +16,8 @@
 | Realtime | Spring WebSocket + STOMP |
 | AI integration | Gemini API, menu-scoped assistance |
 | Temporary data | Redis for forgot-password OTP and Gemini menu context only |
+| Menu image hosting | Cloudinary; PostgreSQL stores image URLs/references in `menu_item_images` |
+| Password-recovery email | Gmail SMTP using Spring Boot Mail (`JavaMailSender`) |
 | Existing helpers | Jakarta Validation, Lombok, Actuator, Spring Boot test starters |
 
 **Installed vs planned:** Web MVC, JPA, PostgreSQL, Flyway, Spring Security, Validation, Lombok and Actuator are in the submitted `pom.xml`. JJWT, WebSocket and Redis starters, and Gemini SDK/client are not yet configured. JJWT with HS256 is approved for auth; verify a compatible version before adding. Other dependencies require team approval. No rate limiting in current scope.
@@ -132,7 +134,7 @@ Use the application's **existing base package** (inspect `*Application.java`, do
 - React keeps access tokens in memory, sends them with `Authorization: Bearer`, and receives refresh tokens in an **HttpOnly cookie** (`Secure` on HTTPS, narrowly scoped `Path=/api/auth`, and deployment-appropriate `SameSite`). Never store refresh tokens in localStorage or return them in JSON.
 - Allowlist configured frontend origins with credentialed CORS. Protect cookie-based auth requests against CSRF using Origin validation plus appropriate SameSite; if deploying cross-site with `SameSite=None`, add explicit CSRF token protection. Local HTTP development may use a non-Secure cookie only in the dev profile.
 - Public auth endpoints are `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, and `GET /api/auth/me`; no `/api/auth/logout-all`. Request/response contracts follow `API_CONVENTIONS.md`.
-- `device_id` is optional app-managed metadata, not proof of a physical device. Keep password-reset OTP verifier/hash in Redis with TTL, expiry and limited attempts; OTP delivery/limits remain a separate decision.
+- `device_id` is optional app-managed metadata, not proof of a physical device. For password recovery, generate a cryptographically random 6-digit OTP, send it via Gmail SMTP, and store only a verifier/hash and attempt state in Redis with a **5-minute TTL** and **maximum 5 failed verification attempts per issued OTP**. Invalidate after success or attempt exhaustion; do not disclose account existence in public recovery responses.
 - Keep secrets out of version control and enforce WebSocket subscription security separately from REST authorization.
 
 ## 10. WebSocket / STOMP Realtime
@@ -165,6 +167,19 @@ Use the application's **existing base package** (inspect `*Application.java`, do
 - Cache misses rebuild from PostgreSQL; cache outages must not cause stale or unsafe availability decisions.
 - Redis also stores expiring forgot-password OTP verification data; **not** order state, inventory balances, refresh tokens or rate-limiting counters.
 - Choose Redis keys, TTL and Gemini request/response schema in approved implementation tasks before writing integrations.
+
+## 11.1 Menu Images — Cloudinary
+
+- Store menu image files in **Cloudinary**, not PostgreSQL or the application server filesystem. Persist only image URL/reference and metadata supported by the applied `menu_item_images` schema.
+- Authorized menu management operations handle uploads and removals via a backend Cloudinary integration; validate file type and size, and do not expose Cloudinary API secrets to React.
+- Keep Cloudinary cloud name/API credentials in environment or secret configuration, never in source control. Coordinate file-upload API contracts and Cloudinary asset cleanup with Member 3; do not add schema columns or introduce public upload endpoints without an approved contract.
+
+## 11.2 Password-Recovery Email — Gmail SMTP
+
+- Use Spring Boot Mail (`JavaMailSender`) with Gmail SMTP for forgot-password OTP delivery; secure SMTP credentials (e.g. an app password where supported) belong in environment variables, never source control.
+- Quang owns OTP business workflow and mail sending integration; the existing shared Redis OTP primitives remain under BINH-DEV ownership. Coordinate compatibility with those primitives before implementation.
+- Redis stores a secure OTP verifier/hash, expiry and failed-attempt count; OTP is 6 digits, expires after 5 minutes, and permits a maximum of 5 failed attempts per issued code. Consume the OTP after successful verification and avoid account-enumeration responses.
+- Do not send email inside an uncommitted state-changing transaction when it could cause inconsistency; handle delivery failure without reporting a successful send. Specific forgot/reset endpoint DTOs remain subject to approved API contracts.
 
 ## 12. Order / Kitchen Consistency
 
@@ -208,4 +223,4 @@ Use the application's **existing base package** (inspect `*Application.java`, do
 - Change only assigned scope; update your own rows in `TASKS.md` **after verifying** acceptance criteria. Record blocked tasks honestly.
 - If PRD, schema, API contract and architecture disagree, report the conflict; never let an AI agent silently choose a rule.
 
-**Still requires decisions before relevant implementation:** deployment-specific FE/BE origins and cookie/CSRF configuration, and Gemini payload contract. JWT library/algorithm/claims, auth endpoints, token lifetimes, rotation, session policies, API response/pagination envelopes, Redis cache/OTP primitives, and STOMP destinations/event contracts are approved.
+**Still requires decisions before relevant implementation:** deployment-specific FE/BE origins and cookie/CSRF configuration, Gemini payload contract, and exact image-upload and forgot/reset API DTOs/endpoints. Cloudinary image hosting and Gmail SMTP email delivery (6-digit OTP, 5-minute TTL, 5 failed attempts) are approved. JWT library/algorithm/claims, auth endpoints, token lifetimes, rotation, session policies, API response/pagination envelopes, Redis cache/OTP primitives, and STOMP destinations/event contracts are approved.
