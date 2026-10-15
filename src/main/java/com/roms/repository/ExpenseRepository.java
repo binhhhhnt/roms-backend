@@ -15,11 +15,11 @@ import java.time.LocalDate;
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
     @Query("SELECT e FROM Expense e WHERE " +
-           "(:startDate IS NULL OR e.expenseDate >= :startDate) AND " +
-           "(:endDate IS NULL OR e.expenseDate <= :endDate) AND " +
-           "(:status IS NULL OR :status = 'ALL' OR " +
-           " (:status = 'ACTIVE' AND e.cancelledAt IS NULL) OR " +
-           " (:status = 'CANCELLED' AND e.cancelledAt IS NOT NULL))")
+           "(:#{#startDate == null} = true OR e.expenseDate >= :startDate) AND " +
+           "(:#{#endDate == null} = true OR e.expenseDate <= :endDate) AND " +
+           "(:#{#status == null || #status == 'ALL'} = true OR " +
+           " (:#{#status == 'ACTIVE'} = true AND e.cancelledAt IS NULL) OR " +
+           " (:#{#status == 'CANCELLED'} = true AND e.cancelledAt IS NOT NULL))")
     Page<Expense> findFiltered(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
@@ -28,16 +28,14 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
     @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE " +
            "e.cancelledAt IS NULL AND " +
-           "(:startDate IS NULL OR e.expenseDate >= :startDate) AND " +
-           "(:endDate IS NULL OR e.expenseDate <= :endDate)")
+           "e.expenseDate BETWEEN :startDate AND :endDate")
     BigDecimal sumActiveExpensesBetweenDates(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
     @Query("SELECT e.expenseDate, COALESCE(SUM(e.amount), 0) FROM Expense e WHERE " +
            "e.cancelledAt IS NULL AND " +
-           "(:startDate IS NULL OR e.expenseDate >= :startDate) AND " +
-           "(:endDate IS NULL OR e.expenseDate <= :endDate) " +
+           "e.expenseDate BETWEEN :startDate AND :endDate " +
            "GROUP BY e.expenseDate ORDER BY e.expenseDate ASC")
     java.util.List<Object[]> sumActiveExpensesGroupedByDate(
             @Param("startDate") LocalDate startDate,

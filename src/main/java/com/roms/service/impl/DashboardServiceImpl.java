@@ -65,6 +65,10 @@ public class DashboardServiceImpl implements DashboardService {
         BigDecimal totalExpenses = expenseRepository.sumActiveExpensesBetweenDates(range.startDate(), range.endDate());
         BigDecimal totalPurchases = purchaseRepository.sumPurchasesBetweenDates(range.startDate(), range.endDate());
 
+        totalRevenue = (totalRevenue != null) ? totalRevenue : BigDecimal.ZERO;
+        totalExpenses = (totalExpenses != null) ? totalExpenses : BigDecimal.ZERO;
+        totalPurchases = (totalPurchases != null) ? totalPurchases : BigDecimal.ZERO;
+
         BigDecimal netProfit = totalRevenue.subtract(totalExpenses).subtract(totalPurchases);
 
         long completedOrders = orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.COMPLETED, range.startDateTime(), range.endDateTime());
@@ -100,7 +104,7 @@ public class DashboardServiceImpl implements DashboardService {
             Long menuItemId = (Long) row[0];
             String menuItemName = (String) row[1];
             Long quantitySold = row[2] != null ? ((Number) row[2]).longValue() : 0L;
-            BigDecimal totalRevenue = row[3] != null ? (BigDecimal) row[3] : BigDecimal.ZERO;
+            BigDecimal totalRevenue = row[3] instanceof BigDecimal bd ? bd : (row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO);
 
             result.add(BestSellingDishResponse.builder()
                     .menuItemId(menuItemId)
@@ -169,7 +173,7 @@ public class DashboardServiceImpl implements DashboardService {
                     } else {
                         date = LocalDate.parse(row[0].toString());
                     }
-                    BigDecimal amount = (BigDecimal) row[1];
+                    BigDecimal amount = row[1] instanceof BigDecimal bd ? bd : new BigDecimal(row[1].toString());
                     map.put(date, amount);
                 }
             }
