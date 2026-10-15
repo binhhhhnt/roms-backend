@@ -1,7 +1,7 @@
 package com.roms.controller;
 
-import com.roms.entity.RefreshToken;
-import com.roms.repository.RefreshTokenRepository;
+import com.roms.security.TokenHashUtil;
+import com.roms.service.OtpRedisService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,8 +42,9 @@ class AuthControllerTest {
                 .build();
     }
 
+
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    private OtpRedisService otpRedisService;
 
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
     private static final Pattern COOKIE_PATTERN = Pattern.compile("refreshToken=([^;]+);");
@@ -247,6 +248,53 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/forgot-password: 200 OK sends OTP and stores hash in Redis")
+    void shouldTriggerForgotPassword() throws Exception {
+        String requestJson = "{\"email\":\"owner@roms.vn\"}";
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        assertThat(otpRedisService.getOtpHash("owner@roms.vn")).isPresent();
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/reset-password: 200 OK resets password with valid OTP")
+    void shouldResetPasswordWithValidOtp() throws Exception {
+        String email = "owner@roms.vn";
+        String rawOtp = "123456";
+        otpRedisService.storeOtp(email, TokenHashUtil.sha256(rawOtp));
+
+        String resetJson = String.format("""
+                {
+                    "email": "%s",
+                    "otp": "%s",
+                    "newPassword": "NewOwnerPassword@123"
+                }
+                """, email, rawOtp);
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resetJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // OTP should be deleted from Redis after successful reset
+        assertThat(otpRedisService.getOtpHash(email)).isEmpty();
+
+        // Should be able to login with new password
+        String newLoginJson = "{\"username\":\"owner\",\"password\":\"NewOwnerPassword@123\"}";
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(newLoginJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     private String extractAccessToken(String responseJson) {

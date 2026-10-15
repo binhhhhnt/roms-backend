@@ -16,7 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

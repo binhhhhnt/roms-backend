@@ -1,18 +1,23 @@
 package com.roms.integration.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GeminiCandidate {
     private GeminiContent content;
     private String finishReason;
     private Integer index;
+
+    public GeminiCandidate() {
+    }
+
+    @Builder
+    public GeminiCandidate(GeminiContent content, String finishReason, Integer index) {
+        this.content = content;
+        this.finishReason = finishReason;
+        this.index = index;
+    }
 }

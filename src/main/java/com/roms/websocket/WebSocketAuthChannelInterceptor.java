@@ -1,6 +1,5 @@
 package com.roms.websocket;
 
-import com.roms.entity.RefreshToken;
 import com.roms.entity.ServiceSession;
 import com.roms.entity.User;
 import com.roms.repository.RefreshTokenRepository;
@@ -8,7 +7,6 @@ import com.roms.repository.ServiceSessionRepository;
 import com.roms.repository.UserRepository;
 import com.roms.security.JwtTokenProvider;
 import com.roms.security.UserPrincipal;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -35,7 +33,6 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String BEARER_PREFIX = "Bearer ";
@@ -43,7 +40,18 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+
     private final ServiceSessionRepository serviceSessionRepository;
+
+    public WebSocketAuthChannelInterceptor(JwtTokenProvider jwtTokenProvider,
+                                           UserRepository userRepository,
+                                           RefreshTokenRepository refreshTokenRepository,
+                                           ServiceSessionRepository serviceSessionRepository) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.serviceSessionRepository = serviceSessionRepository;
+    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -92,7 +100,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
                 .orElseThrow(() -> new BadCredentialsException("User not found or inactive"));
 
         // 2. Verify session in PostgreSQL: must exist, not revoked, and not expired
-        RefreshToken session = refreshTokenRepository.findByIdAndRevokedAtIsNull(sessionId)
+        refreshTokenRepository.findByIdAndRevokedAtIsNull(sessionId)
                 .filter(s -> s.getExpiresAt().isAfter(LocalDateTime.now()))
                 .orElseThrow(() -> new BadCredentialsException("Session revoked or expired"));
 

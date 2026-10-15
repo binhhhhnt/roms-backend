@@ -12,10 +12,25 @@ import java.time.LocalDateTime;
 @Table(name = "inventory_check_items")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class InventoryCheckItem {
+
+    public InventoryCheckItem() {
+    }
+
+    public InventoryCheckItem(Long id, InventoryCheck inventoryCheck, Ingredient ingredient,
+                              BigDecimal systemQuantity, BigDecimal actualQuantity, BigDecimal difference,
+                              String reason, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.inventoryCheck = inventoryCheck;
+        this.ingredient = ingredient;
+        this.systemQuantity = systemQuantity;
+        this.actualQuantity = actualQuantity;
+        this.difference = difference;
+        this.reason = reason;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

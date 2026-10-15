@@ -5,7 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,7 +16,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +35,7 @@ class OtpRedisServiceImplTest {
     private final String normalizedEmail = "staff@roms.com";
     private final String expectedHashKey = "otp:" + normalizedEmail + ":hash";
     private final String expectedAttemptsKey = "otp:" + normalizedEmail + ":attempts";
-    private final long defaultTtl = 600L;
+    private final long defaultTtl = 300L;
     private final int maxAttempts = 5;
 
     @BeforeEach

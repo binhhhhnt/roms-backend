@@ -23,14 +23,14 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-005 | User/account management and authorization for five roles | QUANG | Todo | BE-028, BE-003, BE-006; `TABLE_ACCOUNT`, no roles/permissions tables; related ROMS-008–010 |
+| BE-005 | User/account management and authorization for five roles | QUANG | Done | BE-028, BE-003, BE-006; `TABLE_ACCOUNT`, no roles/permissions tables; related ROMS-008–010; UserController & UserService fully implemented and tested |
 | ROMS-001 | Login/authentication endpoint integration | BINH-DEV | Done | BE-006; includes token issuance/refresh/logout as approved by contracts |
-| BE-018 | Finalize forgot-password OTP delivery and validation workflow | QUANG | Todo | Approved: Gmail SMTP, 6-digit OTP, Redis verifier/hash with 5-minute TTL and max 5 failed attempts per issued OTP; coordinate existing Redis primitives with BINH-DEV and confirm endpoint DTOs |
-| BE-019 | Implement forgot/reset password with Gmail SMTP delivery and Redis OTP verification | QUANG | Todo | BE-006, BE-018, BE-030; Spring Boot Mail dependency/config, secure Gmail credentials, expiry/attempt enforcement and no account enumeration; ROMS-002–003 |
-| ROMS-004–006 | Change password, profile and authorization support APIs | QUANG | Todo | BE-005, BE-006; only applicable backend work |
-| BE-022 | Define Gemini assistant API contract and menu-context format | QUANG | Todo | BE-007, BE-032; approved API/AI requirements |
-| BE-023 | Implement Redis Gemini menu/recipe context caching and invalidation | QUANG | Todo | BE-007, BE-014, BE-022, BE-030; invalidate after commit; no live availability cache |
-| BE-024 | Implement Gemini recommendations with live recipe/stock sellability and ID validation | QUANG | Todo | BE-008, BE-022–023; does not modify orders; no serving quota; related ROMS-032 |
+| BE-018 | Finalize forgot-password OTP delivery and validation workflow | QUANG | Done | Approved: Gmail SMTP, 6-digit OTP, Redis verifier/hash with 5-minute TTL and max 5 failed attempts per issued OTP; coordinate existing Redis primitives with BINH-DEV and confirm endpoint DTOs |
+| BE-019 | Implement forgot/reset password with Gmail SMTP delivery and Redis OTP verification | QUANG | Done | BE-006, BE-018, BE-030; Spring Boot Mail dependency/config, secure Gmail credentials, expiry/attempt enforcement and no account enumeration; ROMS-002–003; 100% tests pass |
+| ROMS-004–006 | Change password, profile and authorization support APIs | QUANG | Done | BE-005, BE-006; change-password, self-profile get/update; full tests passed |
+| BE-022 | Define Gemini assistant API contract and menu-context format | QUANG | Done | Defined AiRecommendationRequest/Response DTOs and menu:context:v1 JSON format; full unit & WebMvc tests passed |
+| BE-023 | Implement Redis Gemini menu/recipe context caching and invalidation | QUANG | Done | Implemented MenuContextService, builds context from DB (categories, items, ingredients), caches in Redis with invalidateContext(); no availability cached; 100% tests passed |
+| BE-024 | Implement Gemini recommendations with live recipe/stock sellability and ID validation | QUANG | Done | Implemented AiAssistantService & Controller (POST /api/ai/recommendations), strict ID validation, live recipe/stock sellability check from PostgreSQL, graceful fallback to featured items; 143/143 project tests passed |
 
 ## 3. Menu and Table/Session Features
 
@@ -38,8 +38,8 @@
 |---|---|---|---|---|
 | BE-007 | Implement categories, menu item CRUD, Cloudinary menu-image integration and tablet menu read APIs | Member 3 | In Review | BE-028; ROMS-019–023, ROMS-025–026; approved category read/write, OWNER menu create/update and image upload/removal implemented. GET menu list/detail includes category, ordered batch-loaded images and live sellability via BE-008; tablet visibility is filtered before pagination. No hard category/menu delete; status remains BE-008. Source/test compilation passed; 165 non-DB regression tests passed using explicit Surefire 3.2.5 (54 BE-007 tests). Two opt-in checks passed: real PostgreSQL catalog queries in read-only transaction with Flyway disabled and real Cloudinary isolated fixture upload/delete. Total BE-007 checks: 56. No migrations or menu/stock DB fixture writes; other owners' DB-writing suites not run. Await peer review/merge before Done. See API_GUIDE Section 7 |
 | BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Done | Implemented PATCH /api/menu-items/{id}/status (OWNER/KITCHEN_STAFF, 403 on DISCONTINUED for non-owner, Redis Gemini cache invalidation after commit) and GET /api/menu-items/{id}/sellability (live PostgreSQL recipe/stock check, no available_quantity/serving quota); 21/21 tests passed (111/111 project tests passed) |
-| BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Todo | BE-028, BE-006; ROMS-011–015, 017–018, 024, 036 |
-| BE-012 | Implement table transfer and transfer-history operations | QUANG | Todo | BE-009; ROMS-016 |
+| BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Done | ROMS-011–015, 017–018, 024, 036; full CRUD tables, realtime status (EMPTY/OCCUPIED/OUT_OF_SERVICE), session open/close with pending/cooking order guard, after-commit STOMP SessionStatusChangedEvent; 100% tests passed (135/135 total tests) |
+| BE-012 | Implement table transfer and transfer-history operations | QUANG | Done | ROMS-016; transfer active session to available active table, audit history in table_transfer_history, after-commit STOMP TableTransferEvent; 100% tests passed |
 
 ## 4. Ordering and Kitchen — BINH-DEV
 

@@ -1,17 +1,28 @@
 package com.roms.dto.event;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class TableTransferEvent {
+
+    public TableTransferEvent() {
+    }
+
+    public TableTransferEvent(Long transferHistoryId, Long sessionId, Long fromTableId,
+                              String fromTableName, Long toTableId, String toTableName,
+                              LocalDateTime occurredAt) {
+        this.transferHistoryId = transferHistoryId;
+        this.sessionId = sessionId;
+        this.fromTableId = fromTableId;
+        this.fromTableName = fromTableName;
+        this.toTableId = toTableId;
+        this.toTableName = toTableName;
+        this.occurredAt = occurredAt;
+    }
     private Long transferHistoryId;
     private Long sessionId;
     private Long fromTableId;

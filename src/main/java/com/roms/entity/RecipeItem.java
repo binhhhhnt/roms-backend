@@ -15,10 +15,21 @@ import java.time.LocalDateTime;
 )
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class RecipeItem {
+
+    public RecipeItem() {
+    }
+
+    public RecipeItem(Long id, MenuItem menuItem, Ingredient ingredient, BigDecimal quantityRequired,
+                      LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.menuItem = menuItem;
+        this.ingredient = ingredient;
+        this.quantityRequired = quantityRequired;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -10,10 +10,21 @@ import java.time.LocalDateTime;
 @Table(name = "table_transfer_history")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class TableTransferHistory {
+
+    public TableTransferHistory() {
+    }
+
+    public TableTransferHistory(Long id, ServiceSession serviceSession, RestaurantTable fromTable,
+                                RestaurantTable toTable, User transferredBy, LocalDateTime transferredAt) {
+        this.id = id;
+        this.serviceSession = serviceSession;
+        this.fromTable = fromTable;
+        this.toTable = toTable;
+        this.transferredBy = transferredBy;
+        this.transferredAt = transferredAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

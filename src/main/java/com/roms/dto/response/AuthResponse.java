@@ -1,17 +1,22 @@
 package com.roms.dto.response;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class AuthResponse {
+
+    public AuthResponse() {
+    }
+
+    public AuthResponse(String accessToken, String tokenType, long expiresIn) {
+        this.accessToken = accessToken;
+        this.tokenType = tokenType;
+        this.expiresIn = expiresIn;
+    }
 
     private String accessToken;
     private String tokenType;

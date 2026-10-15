@@ -12,10 +12,26 @@ import java.time.LocalDateTime;
 @Table(name = "users")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class User {
+
+    public User() {
+    }
+
+    public User(Long id, String username, String passwordHash, String fullName, String email,
+                UserRole role, RestaurantTable table, Boolean isActive,
+                LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.username = username;
+        this.passwordHash = passwordHash;
+        this.fullName = fullName;
+        this.email = email;
+        this.role = role;
+        this.table = table;
+        this.isActive = isActive != null ? isActive : true;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,20 +1,23 @@
 package com.roms.integration.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GeminiGenerateResponse {
     private List<GeminiCandidate> candidates;
+
+    public GeminiGenerateResponse() {
+    }
+
+    @Builder
+    public GeminiGenerateResponse(List<GeminiCandidate> candidates) {
+        this.candidates = candidates;
+    }
 
     /**
      * Convenience method to extract generated text from the first candidate part.

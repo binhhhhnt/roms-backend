@@ -13,14 +13,31 @@ import java.time.LocalDateTime;
 @Table(name = "expenses")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Expense {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    public Expense() {
+    }
+
+    @Builder
+    public Expense(Long id, String name, BigDecimal amount, LocalDate expenseDate, String note,
+                   User createdBy, LocalDateTime cancelledAt, User cancelledBy, String cancelReason,
+                   LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.name = name;
+        this.amount = amount;
+        this.expenseDate = expenseDate;
+        this.note = note;
+        this.createdBy = createdBy;
+        this.cancelledAt = cancelledAt;
+        this.cancelledBy = cancelledBy;
+        this.cancelReason = cancelReason;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;

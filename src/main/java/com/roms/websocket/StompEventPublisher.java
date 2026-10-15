@@ -1,6 +1,5 @@
 package com.roms.websocket;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -13,17 +12,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class StompEventPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;
 
+    public StompEventPublisher(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
     /**
-     * Publish an event to a STOMP destination AFTER the current database transaction commits successfully.
-     * If no active transaction synchronization is present, sends the message immediately.
+     * Publish an event to a STOMP destination AFTER the current database
+     * transaction commits successfully.
+     * If no active transaction synchronization is present, sends the message
+     * immediately.
      *
      * @param destination target STOMP destination (e.g., /topic/kitchen/orders)
-     * @param payload event object to serialize and send
+     * @param payload     event object to serialize and send
      */
     public void publishAfterCommit(String destination, Object payload) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -43,7 +47,7 @@ public class StompEventPublisher {
      * Send a STOMP message immediately.
      *
      * @param destination target STOMP destination
-     * @param payload event object to serialize and send
+     * @param payload     event object to serialize and send
      */
     public void send(String destination, Object payload) {
         try {
@@ -57,9 +61,9 @@ public class StompEventPublisher {
     /**
      * Publish a private event to a specific user after transaction commit.
      *
-     * @param username target username
+     * @param username    target username
      * @param destination sub-destination (e.g., /queue/notifications)
-     * @param payload event object
+     * @param payload     event object
      */
     public void publishToUserAfterCommit(String username, String destination, Object payload) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -78,16 +82,17 @@ public class StompEventPublisher {
     /**
      * Send a private event to a specific user immediately.
      *
-     * @param username target username
+     * @param username    target username
      * @param destination sub-destination
-     * @param payload event object
+     * @param payload     event object
      */
     public void sendToUser(String username, String destination, Object payload) {
         try {
             messagingTemplate.convertAndSendToUser(username, destination, payload);
             log.debug("Published STOMP event to user {} on destination: {}", username, destination);
         } catch (Exception ex) {
-            log.error("Failed to publish STOMP event to user {} on destination {}: {}", username, destination, ex.getMessage(), ex);
+            log.error("Failed to publish STOMP event to user {} on destination {}: {}", username, destination,
+                    ex.getMessage(), ex);
         }
     }
 }

@@ -11,10 +11,21 @@ import java.time.LocalDateTime;
 @Table(name = "menu_item_images")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class MenuItemImage {
+
+    public MenuItemImage() {
+    }
+
+    public MenuItemImage(Long id, MenuItem menuItem, String imageUrl, Integer displayOrder,
+                         LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.menuItem = menuItem;
+        this.imageUrl = imageUrl;
+        this.displayOrder = displayOrder != null ? displayOrder : 0;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

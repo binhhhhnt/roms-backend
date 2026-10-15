@@ -1,17 +1,21 @@
 package com.roms.common;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class ErrorPayload {
+
+    public ErrorPayload() {
+    }
+
+    public ErrorPayload(String code, Object details) {
+        this.code = code;
+        this.details = details;
+    }
 
     private String code;
     private Object details;

@@ -12,6 +12,10 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Triển khai dịch vụ OtpRedisService: Thao tác trực tiếp với Redis qua StringRedisTemplate.
+ * Quản lý lưu trữ mã băm OTP và bộ đếm số lần nhập sai.
+ */
 @Slf4j
 @Service
 public class OtpRedisServiceImpl implements OtpRedisService {
@@ -26,18 +30,25 @@ public class OtpRedisServiceImpl implements OtpRedisService {
 
     public OtpRedisServiceImpl(
             StringRedisTemplate stringRedisTemplate,
-            @Value("${app.redis.otp-ttl-seconds:600}") long defaultTtlSeconds,
+            @Value("${app.redis.otp-ttl-seconds:300}") long defaultTtlSeconds,
             @Value("${app.redis.otp-max-attempts:5}") int maxAttempts) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.defaultTtlSeconds = defaultTtlSeconds;
         this.maxAttempts = maxAttempts;
     }
 
+    /**
+     * Lưu mã băm OTP với thời gian sống mặc định (300 giây = 5 phút).
+     */
     @Override
     public void storeOtp(String email, String hashedOtp) {
         storeOtp(email, hashedOtp, Duration.ofSeconds(defaultTtlSeconds));
     }
 
+    /**
+     * Lưu mã băm OTP vào Redis với thời gian sống chỉ định.
+     * Tự động xóa bộ đếm số lần thử cũ của email này nếu có.
+     */
     @Override
     public void storeOtp(String email, String hashedOtp, Duration ttl) {
         String normalizedEmail = normalizeEmail(email);
@@ -49,6 +60,9 @@ public class OtpRedisServiceImpl implements OtpRedisService {
         log.debug("Stored OTP hash in Redis for email: {} with TTL: {}s", normalizedEmail, ttl.getSeconds());
     }
 
+    /**
+     * Lấy mã băm OTP từ Redis theo email.
+     */
     @Override
     public Optional<String> getOtpHash(String email) {
         String normalizedEmail = normalizeEmail(email);

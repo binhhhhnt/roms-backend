@@ -11,10 +11,22 @@ import java.time.LocalDateTime;
 @Table(name = "service_sessions")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class ServiceSession {
+
+    public ServiceSession() {
+    }
+
+    public ServiceSession(Long id, RestaurantTable table, ServiceSessionStatus status,
+                          LocalDateTime openedAt, User openedBy, LocalDateTime closedAt, User closedBy) {
+        this.id = id;
+        this.table = table;
+        this.status = status != null ? status : ServiceSessionStatus.ACTIVE;
+        this.openedAt = openedAt;
+        this.openedBy = openedBy;
+        this.closedAt = closedAt;
+        this.closedBy = closedBy;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

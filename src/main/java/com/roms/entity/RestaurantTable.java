@@ -11,10 +11,22 @@ import java.time.LocalDateTime;
 @Table(name = "tables")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class RestaurantTable {
+
+    public RestaurantTable() {
+    }
+
+    public RestaurantTable(Long id, String tableCode, Integer capacity, String area,
+                           Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.tableCode = tableCode;
+        this.capacity = capacity;
+        this.area = area;
+        this.isActive = isActive != null ? isActive : true;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
