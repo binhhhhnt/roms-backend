@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -274,7 +275,16 @@ class OrderServiceImplTest {
 
         assertThatThrownBy(() -> orderService.createOrder(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("Insufficient stock");
+                .hasMessageContaining("Insufficient stock")
+                .satisfies(ex -> {
+                    BusinessRuleException bre = (BusinessRuleException) ex;
+                    assertThat(bre.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(bre.getDetails()).isNotNull();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> details = (Map<String, Object>) bre.getDetails();
+                    assertThat(details).containsKey("affectedMenuItems");
+                    assertThat(details).containsKey("insufficientIngredients");
+                });
 
         // Assert nothing saved
         verify(orderRepository, never()).save(any());
@@ -285,7 +295,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: cancels PENDING order, restores ingredient stock, appends compensating movement")
     void shouldCancelPendingOrderAndRestoreStock() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -341,7 +351,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: throws 409 Conflict if order is COOKING or already CANCELLED")
     void shouldThrowConflictWhenCancellingNonPendingOrder() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -362,7 +372,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: cancels single item, restores stock, and cancels parent order if all items cancelled")
     void shouldCancelSingleOrderItemAndCancelParentOrder() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -409,7 +419,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: idempotent protection prevents restoring stock twice")
     void shouldNotRestoreStockTwiceForSameItem() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -476,7 +486,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: throws 409 Conflict if order is COMPLETED")
     void shouldThrowConflictWhenCancellingCompletedOrder() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -494,7 +504,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: throws 409 Conflict if order item is COOKING")
     void shouldThrowConflictWhenCancellingCookingOrderItem() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -520,7 +530,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: throws 409 Conflict if order item is COMPLETED")
     void shouldThrowConflictWhenCancellingCompletedOrderItem() {
-        authenticate(UserRole.SERVICE_STAFF, null);
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         Order order = Order.builder()
                 .id(901L)
@@ -541,5 +551,49 @@ class OrderServiceImplTest {
         assertThatThrownBy(() -> orderService.cancelOrderItem(901L, 801L, new CancelOrderItemRequest("Lý do")))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Only PENDING order items can be cancelled");
+    }
+
+    @Test
+    @DisplayName("cancelOrder: throws 403 Forbidden if non-TABLE_ACCOUNT tries to cancel order")
+    void shouldThrowForbiddenWhenNonTableAccountCancelsOrder() {
+        authenticate(UserRole.KITCHEN_STAFF, null);
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.PENDING)
+                .build();
+
+        when(orderRepository.findByIdForUpdate(901L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.cancelOrder(901L, new CancelOrderRequest("Lý do")))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("Only table accounts can cancel orders");
+    }
+
+    @Test
+    @DisplayName("cancelOrderItem: throws 403 Forbidden if non-TABLE_ACCOUNT tries to cancel order item")
+    void shouldThrowForbiddenWhenNonTableAccountCancelsOrderItem() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.PENDING)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(menuItemPho)
+                .quantity(1)
+                .status(OrderItemStatus.PENDING)
+                .build();
+
+        when(orderItemRepository.findByIdForUpdate(801L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> orderService.cancelOrderItem(901L, 801L, new CancelOrderItemRequest("Lý do")))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("Only table accounts can cancel order items");
     }
 }

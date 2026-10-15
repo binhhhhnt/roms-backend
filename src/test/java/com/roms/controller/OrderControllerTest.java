@@ -223,6 +223,18 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("Non-TABLE_ACCOUNT (SERVICE_STAFF / KITCHEN_STAFF) cannot cancel orders (403 Forbidden)")
+    void serviceStaffCannotCancelOrder() throws Exception {
+        String token = loginAndGetToken("service01", "Password@123");
+
+        mockMvc.perform(post("/api/orders/1/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Hủy bởi phục vụ\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Query orders list: returns 200 OK with list of orders")
     void queryOrdersListSuccessfully() throws Exception {
         String token = loginAndGetToken("service01", "Password@123");

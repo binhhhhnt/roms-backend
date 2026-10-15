@@ -296,7 +296,7 @@ class OrderConcurrencyIntegrationTest {
 
         for (int i = 0; i < threadCount; i++) {
             executor.submit(() -> {
-                authenticate(serviceStaffUser, testSession.getId());
+                authenticate(tableUser, testSession.getId());
                 readyLatch.countDown();
                 try {
                     startLatch.await();
@@ -355,7 +355,7 @@ class OrderConcurrencyIntegrationTest {
         assertThat(kitchenRes.getStatus()).isEqualTo(OrderStatus.COOKING);
 
         // Step 3: Cancelling order when it is COOKING must fail with 409 Conflict
-        authenticate(serviceStaffUser, testSession.getId());
+        authenticate(tableUser, testSession.getId());
         assertThatThrownBy(() -> orderService.cancelOrder(orderId, new CancelOrderRequest("Hủy giữa chừng")))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Only PENDING orders can be cancelled");
@@ -418,6 +418,7 @@ class OrderConcurrencyIntegrationTest {
         Long item2Id = orderRes.getItems().get(1).getId();
 
         // Cancel Item 2 while PENDING (restores stock)
+        authenticate(tableUser, testSession.getId());
         orderService.cancelOrderItem(orderId, item2Id, new CancelOrderItemRequest("Khách hủy món 2"));
 
         // Kitchen accepts order -> COOKING

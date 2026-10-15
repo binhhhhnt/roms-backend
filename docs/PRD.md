@@ -76,7 +76,7 @@ Authorization must be enforced by the backend. The current V1 schema has **no** 
 - `PENDING`: submitted by customer or staff; not yet accepted by kitchen.
 - `COOKING`: kitchen accepted the order; individual items may be `PENDING`, `COOKING`, `READY`, or `COMPLETED`.
 - `COMPLETED`: all **non-cancelled** order items have reached `COMPLETED`.
-- `CANCELLED`: cancellation of the entire order, allowed **only while the order is `PENDING`**.
+- `CANCELLED`: cancellation of the entire order, allowed **only by `TABLE_ACCOUNT` while the order is `PENDING`** (for its own table).
 - There is **no** `READY` or `REJECTED` status for the overall order.
 - Do not mark an order complete when no active (non-cancelled) items remain; this exceptional case requires explicit handling.
 
@@ -89,7 +89,7 @@ Authorization must be enforced by the backend. The current V1 schema has **no** 
 - `COOKING`: being prepared.
 - `READY`: kitchen finished; awaiting delivery to table.
 - `COMPLETED`: served to customer.
-- An individual item may be cancelled **only while that item is `PENDING`**.
+- An individual item may be cancelled **only by `TABLE_ACCOUNT` while that item is `PENDING`** (for its own table).
 - Cancelled items do not count toward the parent's completion condition.
 - Cancelling an entire PENDING order cancels its remaining PENDING items atomically.
 - Item status changes and overall order completion must be evaluated transactionally in the service layer.
@@ -129,4 +129,4 @@ For a backend task to be done:
 - State-changing operations use appropriate transactions; tests cover success, failure, and invalid transitions.
 - `TASKS.md` is updated with verified progress.
 
-**Open decisions:** Exact role-to-operation permission matrix, cancellation actor permissions, API payload definitions, and edge cases not defined above must be confirmed from the approved use cases; do not invent them.
+**Decisions resolved:** Order and OrderItem cancellation is restricted exclusively to `TABLE_ACCOUNT` for its own table while the order/item is `PENDING`. Staff and Kitchen cannot cancel orders.

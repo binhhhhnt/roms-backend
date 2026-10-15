@@ -185,7 +185,7 @@ Use the application's **existing base package** (inspect `*Application.java`, do
 
 - **Order:** `PENDING → COOKING → COMPLETED`, and `PENDING → CANCELLED`; **no** order-level `READY` or `REJECTED`.
 - **OrderItem:** `PENDING → COOKING → READY → COMPLETED`, and `PENDING → CANCELLED`.
-- Cancel an Order **only if Order is PENDING**; cancel an OrderItem **only if that item is PENDING**.
+- Cancel an Order or OrderItem **only if target is PENDING and actor is TABLE_ACCOUNT** (scoped to its own active table session); other roles (STAFF, KITCHEN, OWNER) cannot cancel orders.
 - An Order remains `COOKING` while any non-cancelled item is unfinished, even if some items are `COMPLETED`.
 - Mark the Order `COMPLETED` only if **all non-cancelled items are COMPLETED** and **at least one non-cancelled item exists**.
 - Check state and update parent/child in the same transaction; guard concurrent status changes. Send STOMP events after commit.

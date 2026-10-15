@@ -49,7 +49,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('TABLE_ACCOUNT', 'SERVICE_STAFF', 'KITCHEN_STAFF', 'OWNER')")
+    @PreAuthorize("hasRole('TABLE_ACCOUNT')")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @PathVariable("id") Long id,
             @RequestBody(required = false) CancelOrderRequest request) {
@@ -58,7 +58,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/items/{itemId}/cancel")
-    @PreAuthorize("hasAnyRole('TABLE_ACCOUNT', 'SERVICE_STAFF', 'KITCHEN_STAFF', 'OWNER')")
+    @PreAuthorize("hasRole('TABLE_ACCOUNT')")
     public ResponseEntity<ApiResponse<OrderItemResponse>> cancelOrderItem(
             @PathVariable("id") Long id,
             @PathVariable("itemId") Long itemId,

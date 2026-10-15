@@ -125,13 +125,51 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 3. Check stock sufficiency: if ANY ingredient is insufficient, reject with 409 Conflict
+        Set<Long> insufficientIngIds = new LinkedHashSet<>();
         for (Map.Entry<Long, BigDecimal> entry : aggregatedRequirements.entrySet()) {
             Ingredient ing = lockedIngredients.get(entry.getKey());
             BigDecimal required = entry.getValue();
             if (!Boolean.TRUE.equals(ing.getIsActive()) || ing.getCurrentStock().compareTo(required) < 0) {
-                throw new BusinessRuleException("INSUFFICIENT_STOCK",
-                        "Insufficient stock for ingredient '" + ing.getName() + "'. Required: " + required + ", available: " + ing.getCurrentStock());
+                insufficientIngIds.add(entry.getKey());
             }
+        }
+
+        if (!insufficientIngIds.isEmpty()) {
+            List<Map<String, Object>> affectedMenuItems = new ArrayList<>();
+            for (CreateOrderItemRequest line : request.getItems()) {
+                MenuItem menuItem = menuItemMap.get(line.getMenuItemId());
+                List<RecipeItem> recipes = recipeMap.get(menuItem.getId());
+                boolean affected = recipes != null && recipes.stream()
+                        .anyMatch(r -> r.getIngredient() != null && insufficientIngIds.contains(r.getIngredient().getId()));
+                if (affected) {
+                    Map<String, Object> itemDetail = new LinkedHashMap<>();
+                    itemDetail.put("menuItemId", menuItem.getId());
+                    itemDetail.put("menuItemName", menuItem.getName());
+                    itemDetail.put("requestedQuantity", line.getQuantity());
+                    affectedMenuItems.add(itemDetail);
+                }
+            }
+
+            List<Map<String, Object>> insufficientList = new ArrayList<>();
+            for (Long ingId : insufficientIngIds) {
+                Ingredient ing = lockedIngredients.get(ingId);
+                if (ing != null) {
+                    Map<String, Object> ingDetail = new LinkedHashMap<>();
+                    ingDetail.put("ingredientId", ing.getId());
+                    ingDetail.put("ingredientName", ing.getName());
+                    insufficientList.add(ingDetail);
+                }
+            }
+
+            Map<String, Object> errorDetails = new LinkedHashMap<>();
+            errorDetails.put("affectedMenuItems", affectedMenuItems);
+            errorDetails.put("insufficientIngredients", insufficientList);
+
+            throw new BusinessRuleException(
+                    "INSUFFICIENT_STOCK",
+                    "Insufficient stock for some items in your order. Please reduce quantity or remove affected items.",
+                    errorDetails
+            );
         }
 
         // 4. Persist Order
@@ -248,12 +286,14 @@ public class OrderServiceImpl implements OrderService {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
-        if (currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
-            Long sessionTableId = order.getServiceSession().getTable() != null
-                    ? order.getServiceSession().getTable().getId() : null;
-            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                throw new ForbiddenException("Cannot cancel order from other tables");
-            }
+        if (currentUser.getRole() != UserRole.TABLE_ACCOUNT) {
+            throw new ForbiddenException("Only table accounts can cancel orders");
+        }
+
+        Long sessionTableId = order.getServiceSession().getTable() != null
+                ? order.getServiceSession().getTable().getId() : null;
+        if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
+            throw new ForbiddenException("Cannot cancel order from other tables");
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
@@ -297,12 +337,14 @@ public class OrderServiceImpl implements OrderService {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
-        if (currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
-            Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
-                    ? item.getOrder().getServiceSession().getTable().getId() : null;
-            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                throw new ForbiddenException("Cannot cancel order item from other tables");
-            }
+        if (currentUser.getRole() != UserRole.TABLE_ACCOUNT) {
+            throw new ForbiddenException("Only table accounts can cancel order items");
+        }
+
+        Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
+                ? item.getOrder().getServiceSession().getTable().getId() : null;
+        if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
+            throw new ForbiddenException("Cannot cancel order item from other tables");
         }
 
         if (item.getStatus() != OrderItemStatus.PENDING) {
