@@ -5,6 +5,7 @@ import com.roms.dto.request.MenuItemWriteRequest;
 import com.roms.dto.response.MenuItemResponse;
 import com.roms.dto.response.MenuItemReadResponse;
 import com.roms.common.PageResponse;
+import com.roms.enums.MenuItemStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import com.roms.service.MenuItemService;
@@ -20,9 +21,10 @@ public class MenuItemController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MenuItemReadResponse>>> list(
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) MenuItemStatus status,
             @RequestParam(defaultValue = "1") int quantity,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success("Menu items retrieved successfully", service.getMenuItems(categoryId, quantity, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Menu items retrieved successfully", service.getMenuItems(categoryId, status, quantity, pageable)));
     }
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<MenuItemReadResponse>> detail(@PathVariable Long id,

@@ -87,7 +87,7 @@ class MenuAvailabilityServiceImplTest {
     @DisplayName("OWNER can update menu item status to TEMPORARILY_UNAVAILABLE and invalidates cache")
     void shouldUpdateStatusAsOwner() {
         authenticateUser(UserRole.OWNER);
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
         when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateMenuStatusRequest request = new UpdateMenuStatusRequest(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
@@ -104,7 +104,7 @@ class MenuAvailabilityServiceImplTest {
     @DisplayName("OWNER can update menu item status to DISCONTINUED")
     void shouldUpdateStatusToDiscontinuedAsOwner() {
         authenticateUser(UserRole.OWNER);
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
         when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateMenuStatusRequest request = new UpdateMenuStatusRequest(MenuItemStatus.DISCONTINUED);
@@ -118,7 +118,7 @@ class MenuAvailabilityServiceImplTest {
     @DisplayName("KITCHEN_STAFF can update menu item status to TEMPORARILY_UNAVAILABLE")
     void shouldUpdateStatusAsKitchenStaff() {
         authenticateUser(UserRole.KITCHEN_STAFF);
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
         when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateMenuStatusRequest request = new UpdateMenuStatusRequest(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
@@ -159,13 +159,49 @@ class MenuAvailabilityServiceImplTest {
     @DisplayName("Throws ResourceNotFoundException when menu item does not exist")
     void shouldThrowNotFoundWhenUpdatingNonExistentMenuItem() {
         authenticateUser(UserRole.OWNER);
-        when(menuItemRepository.findById(999L)).thenReturn(Optional.empty());
+        when(menuItemRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         UpdateMenuStatusRequest request = new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE);
 
         assertThatThrownBy(() -> menuAvailabilityService.updateMenuStatus(999L, request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Menu item not found");
+    }
+
+    @Test
+    void kitchenCanResumeTemporarilyUnavailableMenuItem() {
+        authenticateUser(UserRole.KITCHEN_STAFF);
+        testMenuItem.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
+                .isEqualTo(MenuItemStatus.AVAILABLE);
+        verify(menuContextCacheService).invalidateMenuContext();
+    }
+
+    @Test
+    void kitchenCannotResumeOrChangeDiscontinuedMenuItem() {
+        authenticateUser(UserRole.KITCHEN_STAFF);
+        testMenuItem.setStatus(MenuItemStatus.DISCONTINUED);
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
+        for (MenuItemStatus target : List.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE)) {
+            assertThatThrownBy(() -> menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(target)))
+                    .isInstanceOf(ForbiddenException.class);
+        }
+        assertThat(testMenuItem.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
+        verify(menuItemRepository, never()).save(any());
+        verifyNoInteractions(menuContextCacheService);
+    }
+
+    @Test
+    void ownerCanResumeDiscontinuedMenuItem() {
+        authenticateUser(UserRole.OWNER);
+        testMenuItem.setStatus(MenuItemStatus.DISCONTINUED);
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
+                .isEqualTo(MenuItemStatus.AVAILABLE);
+        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test

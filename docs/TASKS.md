@@ -41,6 +41,10 @@
 | BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Todo | BE-028, BE-006; ROMS-011–015, 017–018, 024, 036 |
 | BE-012 | Implement table transfer and transfer-history operations | QUANG | Todo | BE-009; ROMS-016 |
 
+**BE-007 Menu follow-up (2026-10-15):** Added optional `status` filter combined with `categoryId` and role visibility in the database before paging/count. OWNER reads all states; SERVICE_STAFF/KITCHEN_STAFF read AVAILABLE and TEMPORARILY_UNAVAILABLE; TABLE_ACCOUNT reads AVAILABLE in active categories; INVENTORY_STAFF access is unchanged. Out-of-scope filters return 403, malformed status returns 400; detail visibility is consistent. Kitchen status writes are limited to existing AVAILABLE/TEMPORARILY_UNAVAILABLE items under a row lock, preventing restoration of DISCONTINUED. DTOs and stock/recipe logic unchanged. Test compilation and 69 targeted Menu tests passed (including 9 transactional Menu HTTP integration tests); 2 additional read-only PostgreSQL catalog checks passed with Flyway disabled, including combined filters and pagination totals. Used explicit Surefire 3.2.5 without changing pom.xml. BE-007 remains In Review; Frontend integration awaits user confirmation.
+
+**BE-007 branch validation (2026-10-16):** Transferred the approved Menu-only patch onto feature/thuy without importing the nine newer main commits; added the required Collection import on this branch. Clean source/test compilation and 60 Menu service/API-security tests passed. The 9 database-backed Menu HTTP tests could not initialize because PostgreSQL reported EMAXCONNSESSION (session pool limit 15), also with a test-only pool size of 1; read-only PostgreSQL checks were not rerun while the database was saturated. The 71 successful checks above refer to the earlier validation on main. No schema or application-configuration changes were made for this transfer; task status remains In Review.
+
 ## 4. Ordering and Kitchen — BINH-DEV
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
