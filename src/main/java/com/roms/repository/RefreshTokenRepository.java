@@ -20,11 +20,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     List<RefreshToken> findByUserIdAndRevokedAtIsNull(Long userId);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("UPDATE RefreshToken r SET r.revokedAt = :now, r.updatedAt = :now WHERE r.id = :id AND r.revokedAt IS NULL")
     int revokeById(@Param("id") Long id, @Param("now") LocalDateTime now);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("UPDATE RefreshToken r SET r.revokedAt = :now, r.updatedAt = :now WHERE r.user.id = :userId AND r.revokedAt IS NULL")
     int revokeAllByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 }

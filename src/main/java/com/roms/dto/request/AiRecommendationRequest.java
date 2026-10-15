@@ -3,8 +3,10 @@ package com.roms.dto.request;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -13,10 +15,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AiRecommendationRequest {
-
-    public AiRecommendationRequest() {
-    }
 
     public AiRecommendationRequest(String preferences, Integer partySize, String allergies,
                                   String budgetRange, String message) {
@@ -57,4 +58,17 @@ public class AiRecommendationRequest {
      */
     @Size(max = 500, message = "Message must not exceed 500 characters")
     private String message;
+
+    /**
+     * Alias hỗ trợ cho frontend hoặc script gọi với trường query.
+     */
+    @Size(max = 500, message = "Query must not exceed 500 characters")
+    private String query;
+
+    public String getEffectiveMessage() {
+        if (message != null && !message.isBlank()) {
+            return message;
+        }
+        return query;
+    }
 }
