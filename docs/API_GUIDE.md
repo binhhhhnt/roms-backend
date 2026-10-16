@@ -248,7 +248,7 @@ Cho phép Nhân viên Bếp (`KITCHEN_STAFF`) hoặc Chủ quán (`OWNER`) cập
 - **URL:** `http://localhost:8080/api/menu-items/{id}/status`
 - **Phân quyền:**
   - `OWNER`: Có quyền chuyển sang bất kỳ trạng thái nào (`AVAILABLE`, `TEMPORARILY_UNAVAILABLE`, `DISCONTINUED`).
-  - `KITCHEN_STAFF`: Chỉ có quyền chuyển sang `AVAILABLE` hoặc `TEMPORARILY_UNAVAILABLE`. Nếu cố gắng set `DISCONTINUED` sẽ nhận lỗi `403 Forbidden`.
+  - `KITCHEN_STAFF`: Chỉ có quyền đổi giữa `AVAILABLE` và `TEMPORARILY_UNAVAILABLE`. Đặt đích `DISCONTINUED` hoặc sửa món hiện đang `DISCONTINUED` đều trả `403 Forbidden`; không thể bật lại món đã ngừng bán. Kiểm tra trạng thái hiện tại được thực hiện dưới khóa dòng trong transaction.
   - Các vai trò khác: Nhận lỗi `403 Forbidden`.
 - **Headers:**
   - `Authorization: Bearer <access_token>`
@@ -657,9 +657,9 @@ Các API đều dùng `Authorization: Bearer <accessToken>` và envelope chung. 
 | GET | `/api/menu-items` | 200, ApiResponse với PageResponse trong data |
 | GET | `/api/menu-items/{id}` | 200, ApiResponse với MenuItemReadResponse trong data |
 
-Danh sách nhận `page`, `size`, `sort`, `categoryId` (optional, dương), `quantity` (mặc định 1, phải dương). Mặc định page 0, size 20; size lớn hơn 100 được giới hạn còn 100. Sort hỗ trợ `id`, `name`, `price`, `status`, `isFeatured`; mặc định `name,asc`, thêm `id,asc` nếu chưa có sort id. Category không có món khớp trả trang rỗng. Chi tiết nhận `quantity` theo cùng quy tắc.
+Danh sách nhận `page`, `size`, `sort`, `categoryId` (optional, dương), `status` (optional, một giá trị enum), `quantity` (mặc định 1, phải dương). Mặc định page 0, size 20; size lớn hơn 100 được giới hạn còn 100. Sort hỗ trợ `id`, `name`, `price`, `status`, `isFeatured`; mặc định `name,asc`, thêm `id,asc` nếu chưa có sort id. Category không có món khớp trả trang rỗng. Chi tiết nhận `quantity` theo cùng quy tắc.
 
-TABLE_ACCOUNT chỉ thấy món thuộc category active và status khác DISCONTINUED. Món TEMPORARILY_UNAVAILABLE hoặc thiếu nguyên liệu vẫn được hiển thị với availability.sellable=false. Bộ lọc visibility nằm trong truy vấn DB trước phân trang, nên totalElements không tính món bị ẩn. Chi tiết bị ẩn trả 404. Staff/Owner được đọc cả category inactive và món DISCONTINUED.
+Quyền xem status: OWNER đọc mọi trạng thái; KITCHEN_STAFF và SERVICE_STAFF chỉ đọc AVAILABLE hoặc TEMPORARILY_UNAVAILABLE; TABLE_ACCOUNT chỉ đọc AVAILABLE trong category active. INVENTORY_STAFF giữ quyền đọc mọi trạng thái như trước. Staff/Owner vẫn đọc được category inactive. Các điều kiện status, categoryId và category active của tablet được kết hợp trong truy vấn DB trước cả phân trang và count, nên totalElements/totalPages không tính món bị ẩn. Không truyền status trả tất cả trạng thái trong phạm vi role; truyền status ngoài quyền trả 403 FORBIDDEN (không bỏ qua filter, không mở rộng quyền). Giá trị không thuộc enum trả 400 INVALID_REQUEST_PARAMETER. Chi tiết món dùng cùng quyền xem; món ngoài quyền/không tồn tại đều trả 404. Món AVAILABLE nhưng thiếu nguyên liệu vẫn hiển thị với availability.sellable=false.
 
 MenuItemReadResponse gồm thông tin món, `category` (CategoryResponse), `images` và `availability`. Ảnh sắp theo displayOrder rồi id; không có ảnh trả `[]`. Availability gọi service BE-008 từ PostgreSQL cho mỗi món ở mỗi lần đọc; không cache, không trừ kho và không tạo Order. Chỉ trả kết quả khả năng bán, không trả insufficientIngredients/currentStock chi tiết trong DTO đọc catalog. Kết quả tại thời điểm đọc không giữ chỗ; tạo Order phải kiểm tra lại tồn kho.
 
@@ -684,11 +684,11 @@ MenuItemReadResponse gồm thông tin món, `category` (CategoryResponse), `imag
 Danh sách dùng cùng DTO trong `data.content`, message `Menu items retrieved successfully`. `maxPossibleQuantity` là số lượng suy ra theo BE-008, có thể null; không phải quota/available_quantity lưu trên món.
 
 ```bash
-curl "http://localhost:8080/api/menu-items?categoryId=1&page=0&size=20&sort=price,asc&quantity=2" \
+curl "http://localhost:8080/api/menu-items?categoryId=1&status=AVAILABLE&page=0&size=20&sort=price,asc&quantity=2" \
   -H "Authorization: Bearer <accessToken>"
 ```
 
-401 khi thiếu/sai/hết hạn JWT, session bị thu hồi hoặc account inactive; 400 cho ID/query sai kiểu, ID/quantity không dương hoặc sort field không hỗ trợ; 404 cho chi tiết không tồn tại/bị ẩn. Validation không sửa shared auth hoặc BE-008.
+401 khi thiếu/sai/hết hạn JWT, session bị thu hồi hoặc account inactive; 400 cho ID/query sai kiểu, status không hợp lệ, ID/quantity không dương hoặc sort field không hỗ trợ; 403 cho status filter ngoài quyền; 404 cho chi tiết không tồn tại/bị ẩn. Không đổi response DTO, shared auth hoặc logic recipe/tồn kho.
 
 ### 9.3 Ghi Món và Ảnh
 

@@ -9,6 +9,7 @@ import com.roms.entity.MenuItem;
 import com.roms.enums.MenuItemStatus;
 import com.roms.enums.UserRole;
 import com.roms.exception.UnauthorizedException;
+import com.roms.exception.ForbiddenException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.exception.ValidationException;
 import com.roms.mapper.MenuItemMapper;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import java.util.List;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,11 +45,16 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final MenuAvailabilityService availability;
 
     @Override @Transactional(readOnly = true)
-    public PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, int quantity, Pageable pageable) {
+    public PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, MenuItemStatus status, int quantity, Pageable pageable) {
         UserRole role = currentRole();
         requireQuantity(quantity);
         if (categoryId != null && categoryId <= 0) throw new ValidationException("Category id must be positive");
-        var page = repository.findCatalog(categoryId, role == UserRole.TABLE_ACCOUNT, normalizePageable(pageable));
+        Set<MenuItemStatus> statuses = visibleStatuses(role);
+        if (status != null) {
+            if (!statuses.contains(status)) throw new ForbiddenException("Role cannot view the requested menu status");
+            statuses = EnumSet.of(status);
+        }
+        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT, normalizePageable(pageable));
         if (page.isEmpty()) return PageResponse.from(page, item -> readResponse(item, List.of(), quantity));
         List<Long> ids = page.getContent().stream().map(MenuItem::getId).toList();
         Map<Long, List<MenuItemImageResponse>> groupedImages = images.findCatalogImages(ids).stream()
@@ -62,8 +69,8 @@ public class MenuItemServiceImpl implements MenuItemService {
         requireQuantity(quantity);
         if (id == null || id <= 0) throw new ValidationException("Menu item id must be positive");
         MenuItem item = repository.findCatalogById(id)
-                .filter(value -> role != UserRole.TABLE_ACCOUNT ||
-                        (Boolean.TRUE.equals(value.getCategory().getIsActive()) && value.getStatus() != MenuItemStatus.DISCONTINUED))
+                .filter(value -> visibleStatuses(role).contains(value.getStatus()))
+                .filter(value -> role != UserRole.TABLE_ACCOUNT || Boolean.TRUE.equals(value.getCategory().getIsActive()))
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
         List<MenuItemImageResponse> imageResponses = images.findCatalogImages(List.of(id)).stream().map(imageMapper::toResponse).toList();
         return readResponse(item, imageResponses, quantity);
@@ -75,6 +82,13 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
     private UserRole currentRole() {
         return SecurityUtils.getCurrentUserRole().orElseThrow(() -> new UnauthorizedException("Authentication required"));
+    }
+    private Set<MenuItemStatus> visibleStatuses(UserRole role) {
+        return switch (role) {
+            case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
+            case KITCHEN_STAFF, SERVICE_STAFF -> EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+            case TABLE_ACCOUNT -> EnumSet.of(MenuItemStatus.AVAILABLE);
+        };
     }
     private void requireQuantity(int quantity) {
         if (quantity < 1) throw new ValidationException("Quantity must be positive");

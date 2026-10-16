@@ -51,8 +51,12 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
             throw new ForbiddenException("Only OWNER can mark a menu item as DISCONTINUED");
         }
 
-        MenuItem menuItem = menuItemRepository.findById(id)
+        MenuItem menuItem = menuItemRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id));
+
+        if (currentRole == UserRole.KITCHEN_STAFF && menuItem.getStatus() == MenuItemStatus.DISCONTINUED) {
+            throw new ForbiddenException("Only OWNER can change a DISCONTINUED menu item");
+        }
 
         menuItem.setStatus(request.getStatus());
         MenuItem saved = menuItemRepository.save(menuItem);

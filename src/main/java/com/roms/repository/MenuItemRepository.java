@@ -24,8 +24,10 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
     @EntityGraph(attributePaths = "category")
     @Query("select m from MenuItem m where (:categoryId is null or m.category.id = :categoryId) "
-            + "and (:tablet = false or (m.category.isActive = true and m.status <> com.roms.enums.MenuItemStatus.DISCONTINUED))")
-    Page<MenuItem> findCatalog(@Param("categoryId") Long categoryId, @Param("tablet") boolean tablet, Pageable pageable);
+            + "and m.status in :statuses and (:tablet = false or m.category.isActive = true)")
+    Page<MenuItem> findCatalog(@Param("categoryId") Long categoryId,
+                             @Param("statuses") Collection<MenuItemStatus> statuses,
+                             @Param("tablet") boolean tablet, Pageable pageable);
 
     @EntityGraph(attributePaths = "category")
     @Query("select m from MenuItem m where m.id = :id")
