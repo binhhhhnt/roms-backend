@@ -16,15 +16,13 @@ import java.util.List;
 public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
 
     @Query("SELECT COALESCE(SUM(p.totalAmount), 0) FROM Purchase p WHERE " +
-           "(:startDate IS NULL OR p.purchaseDate >= :startDate) AND " +
-           "(:endDate IS NULL OR p.purchaseDate <= :endDate)")
+           "p.purchaseDate BETWEEN :startDate AND :endDate")
     BigDecimal sumPurchasesBetweenDates(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
     @Query("SELECT p.purchaseDate, COALESCE(SUM(p.totalAmount), 0) FROM Purchase p WHERE " +
-           "(:startDate IS NULL OR p.purchaseDate >= :startDate) AND " +
-           "(:endDate IS NULL OR p.purchaseDate <= :endDate) " +
+           "p.purchaseDate BETWEEN :startDate AND :endDate " +
            "GROUP BY p.purchaseDate ORDER BY p.purchaseDate ASC")
     List<Object[]> sumPurchasesGroupedByDate(
             @Param("startDate") LocalDate startDate,

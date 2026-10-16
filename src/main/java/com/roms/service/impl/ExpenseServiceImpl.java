@@ -27,12 +27,20 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ExpenseServiceImpl implements ExpenseService {
 
     private final ExpenseRepository expenseRepository;
     private final UserRepository userRepository;
     private final ExpenseMapper expenseMapper;
+
+    public ExpenseServiceImpl(
+            ExpenseRepository expenseRepository,
+            UserRepository userRepository,
+            ExpenseMapper expenseMapper) {
+        this.expenseRepository = expenseRepository;
+        this.userRepository = userRepository;
+        this.expenseMapper = expenseMapper;
+    }
 
     @Override
     @Transactional

@@ -27,8 +27,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND " +
-           "(:startDate IS NULL OR o.createdAt >= :startDate) AND " +
-           "(:endDate IS NULL OR o.createdAt <= :endDate)")
+           "o.createdAt BETWEEN :startDate AND :endDate")
     long countByStatusAndCreatedAtBetween(
             @Param("status") OrderStatus status,
             @Param("startDate") java.time.LocalDateTime startDate,
