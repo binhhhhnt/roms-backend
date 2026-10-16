@@ -19,9 +19,17 @@ public class UserMapper {
             return null;
         }
 
-        // Lấy thông tin bàn ăn nếu tài khoản là TABLE_ACCOUNT và đã được liên kết với bàn
-        Long tableId = (user.getTable() != null) ? user.getTable().getId() : null;
-        String tableCode = (user.getTable() != null) ? user.getTable().getTableCode() : null;
+        // Lấy thông tin bàn ăn an toàn, phòng ngừa LazyInitializationException khi Entity bị detached
+        Long tableId = null;
+        String tableCode = null;
+        try {
+            if (user.getTable() != null) {
+                tableId = user.getTable().getId();
+                tableCode = user.getTable().getTableCode();
+            }
+        } catch (Exception ignored) {
+            // Trường hợp proxy bị detached
+        }
 
         return UserResponse.builder()
                 .id(user.getId())

@@ -24,6 +24,14 @@ public class UpdateUserRequest {
         this.tableId = tableId;
     }
 
+    public UpdateUserRequest(String fullName, String email, UserRole role, Long tableId, String password) {
+        this.fullName = fullName;
+        this.email = email;
+        this.role = role;
+        this.tableId = tableId;
+        this.password = password;
+    }
+
     @NotBlank(message = "Full name cannot be blank")
     @Size(max = 255, message = "Full name cannot exceed 255 characters")
     private String fullName;
@@ -36,4 +44,7 @@ public class UpdateUserRequest {
     private UserRole role;
 
     private Long tableId;
+
+    @Size(min = 6, max = 100, message = "Password must be at least 6 characters")
+    private String password;
 }

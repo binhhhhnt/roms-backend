@@ -183,6 +183,12 @@ public class UserServiceImpl implements UserService {
         user.setRole(request.getRole());
         user.setTable(table);
 
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword().trim()));
+            refreshTokenService.revokeAllUserSessions(user.getId());
+            log.info("Password updated for user id: {}", user.getId());
+        }
+
         User updatedUser = userRepository.save(user);
         log.info("Updated user id: {}, role: {}", updatedUser.getId(), updatedUser.getRole());
         return userMapper.toResponse(updatedUser);
@@ -209,6 +215,8 @@ public class UserServiceImpl implements UserService {
         user.setIsActive(request.getIsActive());
         User savedUser = userRepository.save(user);
 
+        UserResponse response = userMapper.toResponse(savedUser);
+
         // Nếu vô hiệu hóa tài khoản: Thu hồi toàn bộ refresh token / phiên làm việc đang hoạt động
         if (Boolean.FALSE.equals(request.getIsActive())) {
             refreshTokenService.revokeAllUserSessions(id);
@@ -217,7 +225,7 @@ public class UserServiceImpl implements UserService {
             log.info("Activated user id: {}.", id);
         }
 
-        return userMapper.toResponse(savedUser);
+        return response;
     }
 
     /**
