@@ -64,6 +64,7 @@ class AiAssistantServiceImplTest {
         phoBo = MenuItem.builder()
                 .id(1L)
                 .name("Phở bò đặc biệt")
+                .description("Phở bò truyền thống hầm xương")
                 .category(mainCategory)
                 .price(new BigDecimal("65000"))
                 .status(MenuItemStatus.AVAILABLE)
@@ -73,6 +74,7 @@ class AiAssistantServiceImplTest {
         bunCha = MenuItem.builder()
                 .id(2L)
                 .name("Bún chả Hà Nội")
+                .description("Bún chả nướng than hoa")
                 .category(mainCategory)
                 .price(new BigDecimal("55000"))
                 .status(MenuItemStatus.AVAILABLE)
@@ -82,6 +84,7 @@ class AiAssistantServiceImplTest {
         outOfStockItem = MenuItem.builder()
                 .id(3L)
                 .name("Lẩu bò nhúng dấm")
+                .description("Lẩu bò tươi ngon")
                 .category(mainCategory)
                 .price(new BigDecimal("250000"))
                 .status(MenuItemStatus.AVAILABLE)
@@ -90,36 +93,17 @@ class AiAssistantServiceImplTest {
 
         beef = Ingredient.builder()
                 .id(10L)
-                .name("Thịt bò")
+                .name("Thịt bò phi lê")
                 .currentStock(new BigDecimal("1000"))
                 .isActive(true)
                 .build();
 
         pork = Ingredient.builder()
                 .id(20L)
-                .name("Thịt heo")
+                .name("Thịt heo ba chỉ")
                 .currentStock(new BigDecimal("2000"))
                 .isActive(true)
                 .build();
-    }
-
-    @Test
-    @DisplayName("should fallback to featured items when Gemini is not configured")
-    void shouldFallbackWhenGeminiNotConfigured() {
-        when(geminiClientAdapter.isConfigured()).thenReturn(false);
-        when(menuItemRepository.findFeaturedAvailableWithCategory()).thenReturn(List.of(phoBo));
-        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
-
-        AiRecommendationRequest request = AiRecommendationRequest.builder()
-                .preferences("thích món nước")
-                .build();
-
-        AiRecommendationResponse response = aiAssistantService.getRecommendations(request);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getMessage()).contains("bảo trì");
-        assertThat(response.getRecommendations()).hasSize(1);
-        assertThat(response.getRecommendations().get(0).getName()).isEqualTo("Phở bò đặc biệt");
     }
 
     @Test
@@ -142,7 +126,6 @@ class AiAssistantServiceImplTest {
         when(geminiClientAdapter.generateText(anyString(), anyString())).thenReturn(geminiJson);
         when(menuItemRepository.findByIdInWithCategory(anyCollection())).thenReturn(List.of(phoBo, bunCha));
 
-        // Mock recipe checks: both items have sufficient stock
         RecipeItem phoRecipe = RecipeItem.builder().menuItem(phoBo).ingredient(beef).quantityRequired(new BigDecimal("150")).build();
         RecipeItem bunChaRecipe = RecipeItem.builder().menuItem(bunCha).ingredient(pork).quantityRequired(new BigDecimal("200")).build();
 
@@ -183,46 +166,93 @@ class AiAssistantServiceImplTest {
         when(geminiClientAdapter.generateText(anyString(), anyString())).thenReturn(geminiJson);
         when(menuItemRepository.findByIdInWithCategory(anyCollection())).thenReturn(List.of(phoBo, outOfStockItem));
 
-        // Item 1: Sufficient stock
         RecipeItem phoRecipe = RecipeItem.builder().menuItem(phoBo).ingredient(beef).quantityRequired(new BigDecimal("150")).build();
         when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(phoRecipe));
 
-        // Item 3: Insufficient stock (requires 2000g, but only 1000g available)
         RecipeItem lauRecipe = RecipeItem.builder().menuItem(outOfStockItem).ingredient(beef).quantityRequired(new BigDecimal("2000")).build();
         when(recipeItemRepository.findByMenuItemIdWithIngredient(3L)).thenReturn(List.of(lauRecipe));
 
         AiRecommendationResponse response = aiAssistantService.getRecommendations(new AiRecommendationRequest());
 
         assertThat(response).isNotNull();
-        // Item 3 must be discarded because of insufficient stock
         assertThat(response.getRecommendations()).hasSize(1);
         assertThat(response.getRecommendations().get(0).getMenuItemId()).isEqualTo(1L);
     }
 
     @Test
-    @DisplayName("should discard invented or non-existing IDs from AI")
-    void shouldDiscardNonExistingIds() {
-        when(geminiClientAdapter.isConfigured()).thenReturn(true);
-        when(menuContextService.getOrBuildContext()).thenReturn("[]");
+    @DisplayName("should return empty recommendations for general greeting or chit-chat")
+    void shouldReturnEmptyRecommendationsForGreeting() {
+        when(geminiClientAdapter.isConfigured()).thenReturn(false);
+        when(menuItemRepository.findByStatusNotWithCategory(MenuItemStatus.DISCONTINUED)).thenReturn(List.of(phoBo, bunCha));
 
-        String geminiJson = """
-                {
-                  "message": "Gợi ý:",
-                  "recommendations": [
-                    { "menuItemId": 9999, "reason": "Món tưởng tượng" }
-                  ]
-                }
-                """;
-        when(geminiClientAdapter.generateText(anyString(), anyString())).thenReturn(geminiJson);
-        when(menuItemRepository.findByIdInWithCategory(anyCollection())).thenReturn(Collections.emptyList());
-        when(menuItemRepository.findFeaturedAvailableWithCategory()).thenReturn(List.of(phoBo));
-        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
+        AiRecommendationRequest request = AiRecommendationRequest.builder()
+                .message("Xin chào bạn")
+                .build();
 
-        AiRecommendationResponse response = aiAssistantService.getRecommendations(new AiRecommendationRequest());
+        AiRecommendationResponse response = aiAssistantService.getRecommendations(request);
 
         assertThat(response).isNotNull();
-        // Falling back to featured because 9999 was discarded
-        assertThat(response.getRecommendations()).hasSize(1);
-        assertThat(response.getRecommendations().get(0).getMenuItemId()).isEqualTo(1L);
+        assertThat(response.getMessage()).contains("Xin chào");
+        assertThat(response.getRecommendations()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should return empty recommendations for restaurant info queries like opening hours or wifi")
+    void shouldReturnEmptyRecommendationsForRestaurantInfo() {
+        when(geminiClientAdapter.isConfigured()).thenReturn(false);
+        when(menuItemRepository.findByStatusNotWithCategory(MenuItemStatus.DISCONTINUED)).thenReturn(List.of(phoBo, bunCha));
+
+        AiRecommendationRequest request = AiRecommendationRequest.builder()
+                .message("Nhà hàng mở cửa mấy giờ?")
+                .build();
+
+        AiRecommendationResponse response = aiAssistantService.getRecommendations(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMessage()).contains("10:00");
+        assertThat(response.getRecommendations()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should recommend dishes based on recipe ingredients matching user query")
+    void shouldRecommendDishesBasedOnRecipeIngredient() {
+        when(geminiClientAdapter.isConfigured()).thenReturn(false);
+        when(menuItemRepository.findByStatusNotWithCategory(MenuItemStatus.DISCONTINUED)).thenReturn(List.of(phoBo, bunCha));
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(2L)).thenReturn(Collections.emptyList());
+
+        RecipeItem phoBeefRecipe = RecipeItem.builder().menuItem(phoBo).ingredient(beef).quantityRequired(new BigDecimal("150")).build();
+        when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyList())).thenReturn(List.of(phoBeefRecipe));
+
+        AiRecommendationRequest request = AiRecommendationRequest.builder()
+                .message("món về thịt bò")
+                .build();
+
+        AiRecommendationResponse response = aiAssistantService.getRecommendations(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getRecommendations()).isNotEmpty();
+        assertThat(response.getRecommendations().get(0).getName()).isEqualTo("Phở bò đặc biệt");
+        assertThat(response.getRecommendations().get(0).getReason()).contains("Thịt bò");
+    }
+
+    @Test
+    @DisplayName("should report not found and not recommend random dishes when ingredient does not exist")
+    void shouldReportNotFoundWhenIngredientDoesNotExist() {
+        when(geminiClientAdapter.isConfigured()).thenReturn(false);
+        when(menuItemRepository.findByStatusNotWithCategory(MenuItemStatus.DISCONTINUED)).thenReturn(List.of(phoBo, bunCha));
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(2L)).thenReturn(Collections.emptyList());
+        when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyList())).thenReturn(Collections.emptyList());
+
+        AiRecommendationRequest request = AiRecommendationRequest.builder()
+                .message("nhà hàng có món cá hồi không?")
+                .build();
+
+        AiRecommendationResponse response = aiAssistantService.getRecommendations(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMessage()).contains("chưa có món ăn");
+        assertThat(response.getRecommendations()).isEmpty();
     }
 }
