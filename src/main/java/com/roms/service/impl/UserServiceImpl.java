@@ -221,9 +221,9 @@ public class UserServiceImpl implements UserService {
         // Chỉ tạm thời chặn khóa tài khoản khi bàn đang có phiên phục vụ hoạt động
         if (user.getRole() == UserRole.TABLE_ACCOUNT && Boolean.FALSE.equals(request.getIsActive())) {
             if (user.getTable() != null) {
-                boolean hasActiveSession = serviceSessionRepository.findByTableIdAndStatus(
+                boolean hasActiveSession = serviceSessionRepository.existsByTableIdAndStatus(
                         user.getTable().getId(), ServiceSessionStatus.ACTIVE
-                ).isPresent();
+                );
                 if (hasActiveSession) {
                     throw new BusinessRuleException(
                             "Không thể khóa tài khoản khi bàn đang có phiên phục vụ hoạt động.",

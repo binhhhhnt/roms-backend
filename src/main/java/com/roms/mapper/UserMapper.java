@@ -49,7 +49,7 @@ public class UserMapper {
                 tableIsActive = user.getTable().getIsActive();
 
                 if (tableId != null && sessionRepository != null) {
-                    hasActiveSession = sessionRepository.findByTableIdAndStatus(tableId, ServiceSessionStatus.ACTIVE).isPresent();
+                    hasActiveSession = sessionRepository.existsByTableIdAndStatus(tableId, ServiceSessionStatus.ACTIVE);
                 } else {
                     hasActiveSession = false;
                 }
