@@ -119,6 +119,15 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                     "TABLE_INACTIVE");
         }
 
+        // 3.1. Kiểm tra tài khoản máy tính bảng của bàn: nếu tài khoản bàn đang bị khóa thì không thể mở phiên phục vụ
+        userRepository.findByTableId(tableId).ifPresent(tableUser -> {
+            if (Boolean.FALSE.equals(tableUser.getIsActive())) {
+                throw new BusinessRuleException(
+                        "Không thể mở phiên phục vụ cho bàn có tài khoản máy tính bảng đang bị khóa (" + table.getTableCode() + ").",
+                        "TABLE_ACCOUNT_LOCKED");
+            }
+        });
+
         // 4. Kiểm tra phân quyền: Tablet chỉ được mở phiên tại chính bàn được phân công
         if (principal.getRole() == UserRole.TABLE_ACCOUNT) {
             if (principal.getTableId() == null || !principal.getTableId().equals(tableId)) {
@@ -336,6 +345,15 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                     "Cannot transfer to inactive table: " + toTable.getTableCode(),
                     "TARGET_TABLE_INACTIVE");
         }
+
+        // Kiểm tra tài khoản máy tính bảng của bàn đích: nếu tài khoản bàn đang bị khóa thì không thể chuyển bàn
+        userRepository.findByTableId(toTableId).ifPresent(targetTableUser -> {
+            if (Boolean.FALSE.equals(targetTableUser.getIsActive())) {
+                throw new BusinessRuleException(
+                        "Không thể chuyển bàn sang bàn có tài khoản máy tính bảng đang bị khóa (" + toTable.getTableCode() + ").",
+                        "TARGET_TABLE_ACCOUNT_LOCKED");
+            }
+        });
 
         // 6. Kiểm tra bàn đích có đang có phiên ACTIVE nào khác không
         boolean targetHasActiveSession = sessionRepository.existsByTableIdAndStatus(toTableId, ServiceSessionStatus.ACTIVE);
