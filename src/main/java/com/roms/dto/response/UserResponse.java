@@ -16,8 +16,9 @@ public class UserResponse {
     }
 
     public UserResponse(Long id, String username, String fullName, String email,
-                        UserRole role, Long tableId, String tableCode, Boolean isActive,
-                        LocalDateTime createdAt, LocalDateTime updatedAt) {
+                        UserRole role, Long tableId, String tableCode, Boolean tableIsActive,
+                        Boolean hasActiveSession, String tableRealtimeStatus, Boolean canDeactivate,
+                        Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.username = username;
         this.fullName = fullName;
@@ -25,6 +26,10 @@ public class UserResponse {
         this.role = role;
         this.tableId = tableId;
         this.tableCode = tableCode;
+        this.tableIsActive = tableIsActive;
+        this.hasActiveSession = hasActiveSession;
+        this.tableRealtimeStatus = tableRealtimeStatus;
+        this.canDeactivate = canDeactivate;
         this.isActive = isActive;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -37,6 +42,10 @@ public class UserResponse {
     private UserRole role;
     private Long tableId;
     private String tableCode;
+    private Boolean tableIsActive;
+    private Boolean hasActiveSession;
+    private String tableRealtimeStatus;
+    private Boolean canDeactivate;
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

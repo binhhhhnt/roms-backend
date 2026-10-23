@@ -38,6 +38,9 @@ class UserServiceTest {
     @Autowired
     private RestaurantTableRepository tableRepository;
 
+    @Autowired
+    private com.roms.repository.ServiceSessionRepository sessionRepository;
+
     @Test
     @DisplayName("Should query users with pagination and filter by role")
     void shouldGetUsersWithFilter() {
@@ -192,6 +195,7 @@ class UserServiceTest {
     @DisplayName("Should change password successfully when authenticated")
     void shouldChangePassword() {
         User staff = userRepository.findByUsername("service01").orElseThrow();
+        String oldPasswordHash = staff.getPasswordHash();
 
         // Simulate security authentication context
         UserPrincipal principal = UserPrincipal.create(staff, 999L);
@@ -207,7 +211,7 @@ class UserServiceTest {
         userService.changePassword(request);
 
         User reloaded = userRepository.findById(staff.getId()).orElseThrow();
-        assertThat(reloaded.getPasswordHash()).isNotEqualTo(staff.getPasswordHash());
+        assertThat(reloaded.getPasswordHash()).isNotEqualTo(oldPasswordHash);
     }
 
     @Test
@@ -228,5 +232,83 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.changePassword(request))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Current password does not match");
+    }
+
+    @Test
+    @DisplayName("Should reject deactivating table account when linked table is active")
+    void shouldRejectDeactivatingTableAccountWhenTableIsActive() {
+        RestaurantTable table = tableRepository.save(RestaurantTable.builder()
+                .tableCode("T_ACT_01")
+                .capacity(4)
+                .isActive(true)
+                .build());
+
+        User tableUser = userRepository.save(User.builder()
+                .username("table_act_01")
+                .passwordHash("hash")
+                .fullName("Table Act 01")
+                .role(UserRole.TABLE_ACCOUNT)
+                .table(table)
+                .isActive(true)
+                .build());
+
+        assertThatThrownBy(() -> userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", "CANNOT_DEACTIVATE_ACTIVE_TABLE");
+    }
+
+    @Test
+    @DisplayName("Should reject deactivating table account when table has active service session")
+    void shouldRejectDeactivatingTableAccountWhenTableHasActiveSession() {
+        User staff = userRepository.findByUsername("service01").orElseThrow();
+
+        RestaurantTable table = tableRepository.save(RestaurantTable.builder()
+                .tableCode("T_SESS_01")
+                .capacity(4)
+                .isActive(false) // table itself is inactive, but has an active session
+                .build());
+
+        sessionRepository.save(com.roms.entity.ServiceSession.builder()
+                .table(table)
+                .openedBy(staff)
+                .status(com.roms.enums.ServiceSessionStatus.ACTIVE)
+                .openedAt(java.time.LocalDateTime.now())
+                .build());
+
+        User tableUser = userRepository.save(User.builder()
+                .username("table_sess_01")
+                .passwordHash("hash")
+                .fullName("Table Sess 01")
+                .role(UserRole.TABLE_ACCOUNT)
+                .table(table)
+                .isActive(true)
+                .build());
+
+        assertThatThrownBy(() -> userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", "TABLE_HAS_ACTIVE_SESSION");
+    }
+
+    @Test
+    @DisplayName("Should allow deactivating table account when table is inactive and has no active session")
+    void shouldAllowDeactivatingTableAccountWhenTableIsInactiveAndNoSession() {
+        RestaurantTable table = tableRepository.save(RestaurantTable.builder()
+                .tableCode("T_INACT_01")
+                .capacity(4)
+                .isActive(false)
+                .build());
+
+        User tableUser = userRepository.save(User.builder()
+                .username("table_inact_01")
+                .passwordHash("hash")
+                .fullName("Table Inact 01")
+                .role(UserRole.TABLE_ACCOUNT)
+                .table(table)
+                .isActive(true)
+                .build());
+
+        UserResponse response = userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false));
+        assertThat(response.getIsActive()).isFalse();
+        assertThat(response.getCanDeactivate()).isTrue();
     }
 }

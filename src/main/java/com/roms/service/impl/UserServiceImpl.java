@@ -5,12 +5,14 @@ import com.roms.dto.request.*;
 import com.roms.dto.response.UserResponse;
 import com.roms.entity.RestaurantTable;
 import com.roms.entity.User;
+import com.roms.enums.ServiceSessionStatus;
 import com.roms.enums.UserRole;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.exception.UnauthorizedException;
 import com.roms.mapper.UserMapper;
 import com.roms.repository.RestaurantTableRepository;
+import com.roms.repository.ServiceSessionRepository;
 import com.roms.repository.UserRepository;
 import com.roms.security.SecurityUtils;
 import com.roms.service.RefreshTokenService;
@@ -30,17 +32,20 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final RestaurantTableRepository restaurantTableRepository;
+    private final ServiceSessionRepository serviceSessionRepository;
     private final RefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
 
     public UserServiceImpl(UserRepository userRepository,
                            RestaurantTableRepository restaurantTableRepository,
+                           ServiceSessionRepository serviceSessionRepository,
                            RefreshTokenService refreshTokenService,
                            PasswordEncoder passwordEncoder,
                            UserMapper userMapper) {
         this.userRepository = userRepository;
         this.restaurantTableRepository = restaurantTableRepository;
+        this.serviceSessionRepository = serviceSessionRepository;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
@@ -210,6 +215,28 @@ public class UserServiceImpl implements UserService {
         Long currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
         if (id.equals(currentUserId) && Boolean.FALSE.equals(request.getIsActive())) {
             throw new BusinessRuleException("Cannot deactivate your own account", "CANNOT_DEACTIVATE_SELF");
+        }
+
+        // Quy tắc bảo vệ tài khoản bàn (TABLE_ACCOUNT):
+        // Không thể khóa tài khoản nếu bàn liên kết đang hoạt động hoặc bàn đang có phiên phục vụ hoạt động
+        if (user.getRole() == UserRole.TABLE_ACCOUNT && Boolean.FALSE.equals(request.getIsActive())) {
+            if (user.getTable() != null) {
+                if (Boolean.TRUE.equals(user.getTable().getIsActive())) {
+                    throw new BusinessRuleException(
+                            "Không thể khóa tài khoản khi bàn liên kết đang hoạt động. Vui lòng chuyển bàn sang ngừng phục vụ trước.",
+                            "CANNOT_DEACTIVATE_ACTIVE_TABLE"
+                    );
+                }
+                boolean hasActiveSession = serviceSessionRepository.findByTableIdAndStatus(
+                        user.getTable().getId(), ServiceSessionStatus.ACTIVE
+                ).isPresent();
+                if (hasActiveSession) {
+                    throw new BusinessRuleException(
+                            "Không thể khóa tài khoản khi bàn đang có phiên phục vụ hoạt động.",
+                            "TABLE_HAS_ACTIVE_SESSION"
+                    );
+                }
+            }
         }
 
         user.setIsActive(request.getIsActive());
