@@ -63,9 +63,10 @@ public class UserMapper {
                 }
 
                 // Đối với tài khoản bàn (TABLE_ACCOUNT):
-                // Nếu bàn đang hoạt động hoặc đang có phiên phục vụ -> KHÔNG THỂ KHÓA TÀI KHOẢN
+                // Chỉ khi bàn đang mở phiên phục vụ (active session) thì tạm thời không thể khóa tài khoản
+                // Các bàn không có phiên phục vụ thì có thể khóa tài khoản bình thường
                 if (user.getRole() == UserRole.TABLE_ACCOUNT) {
-                    canDeactivate = !Boolean.TRUE.equals(tableIsActive) && !Boolean.TRUE.equals(hasActiveSession);
+                    canDeactivate = !Boolean.TRUE.equals(hasActiveSession);
                 }
             }
         } catch (Exception ignored) {

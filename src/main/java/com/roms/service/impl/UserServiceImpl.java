@@ -218,15 +218,9 @@ public class UserServiceImpl implements UserService {
         }
 
         // Quy tắc bảo vệ tài khoản bàn (TABLE_ACCOUNT):
-        // Không thể khóa tài khoản nếu bàn liên kết đang hoạt động hoặc bàn đang có phiên phục vụ hoạt động
+        // Chỉ tạm thời chặn khóa tài khoản khi bàn đang có phiên phục vụ hoạt động
         if (user.getRole() == UserRole.TABLE_ACCOUNT && Boolean.FALSE.equals(request.getIsActive())) {
             if (user.getTable() != null) {
-                if (Boolean.TRUE.equals(user.getTable().getIsActive())) {
-                    throw new BusinessRuleException(
-                            "Không thể khóa tài khoản khi bàn liên kết đang hoạt động. Vui lòng chuyển bàn sang ngừng phục vụ trước.",
-                            "CANNOT_DEACTIVATE_ACTIVE_TABLE"
-                    );
-                }
                 boolean hasActiveSession = serviceSessionRepository.findByTableIdAndStatus(
                         user.getTable().getId(), ServiceSessionStatus.ACTIVE
                 ).isPresent();

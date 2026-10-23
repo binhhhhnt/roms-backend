@@ -235,8 +235,8 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should reject deactivating table account when linked table is active")
-    void shouldRejectDeactivatingTableAccountWhenTableIsActive() {
+    @DisplayName("Should allow deactivating table account when table is active but has no active session")
+    void shouldAllowDeactivatingTableAccountWhenTableIsActiveAndNoActiveSession() {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T_ACT_01")
                 .capacity(4)
@@ -252,9 +252,9 @@ class UserServiceTest {
                 .isActive(true)
                 .build());
 
-        assertThatThrownBy(() -> userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false)))
-                .isInstanceOf(BusinessRuleException.class)
-                .hasFieldOrPropertyWithValue("code", "CANNOT_DEACTIVATE_ACTIVE_TABLE");
+        UserResponse response = userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false));
+        assertThat(response.getIsActive()).isFalse();
+        assertThat(response.getCanDeactivate()).isTrue();
     }
 
     @Test
@@ -265,7 +265,7 @@ class UserServiceTest {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T_SESS_01")
                 .capacity(4)
-                .isActive(false) // table itself is inactive, but has an active session
+                .isActive(true)
                 .build());
 
         sessionRepository.save(com.roms.entity.ServiceSession.builder()
