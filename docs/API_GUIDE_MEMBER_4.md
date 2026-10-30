@@ -657,7 +657,7 @@ Cho phép điều chỉnh số lượng hoặc đơn giá của 1 dòng hàng đ
 
 - **Method:** `GET`
 - **URL:** `/api/menu-items/{menuItemId}/recipe`
-- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`, `INVENTORY_STAFF`
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`
 
 #### Response Thành Công (`200 OK`)
 ```json
@@ -688,7 +688,7 @@ Xóa toàn bộ các dòng định lượng cũ của món và thay thế bằng
 
 - **Method:** `PUT`
 - **URL:** `/api/menu-items/{menuItemId}/recipe`
-- **Vai trò được phép:** `OWNER`
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`
 - **Ràng buộc:** Payload không được chứa trùng `ingredientId`, tất cả nguyên liệu phải tồn tại và đang hoạt động (`isActive == true`).
 
 #### Request Body
@@ -741,7 +741,7 @@ Xóa toàn bộ các dòng định lượng cũ của món và thay thế bằng
 
 - **Method:** `POST`
 - **URL:** `/api/menu-items/{menuItemId}/recipe/items`
-- **Vai trò được phép:** `OWNER`
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`
 
 #### Request Body
 ```json
@@ -804,7 +804,7 @@ Xóa toàn bộ các dòng định lượng cũ của món và thay thế bằng
 
 - **Method:** `PATCH`
 - **URL:** `/api/menu-items/{menuItemId}/recipe/items/{ingredientId}`
-- **Vai trò được phép:** `OWNER`
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`
 
 #### Request Body
 ```json
@@ -854,7 +854,7 @@ Xóa toàn bộ các dòng định lượng cũ của món và thay thế bằng
 
 - **Method:** `DELETE`
 - **URL:** `/api/menu-items/{menuItemId}/recipe/items/{ingredientId}`
-- **Vai trò được phép:** `OWNER`
+- **Vai trò được phép:** `OWNER`, `KITCHEN_STAFF`
 
 #### Response Thành Công (`200 OK`)
 ```json

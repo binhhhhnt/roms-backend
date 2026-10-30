@@ -81,7 +81,7 @@ public class TableController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin bàn ăn
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'TABLE_ACCOUNT')")
     public ResponseEntity<ApiResponse<TableResponse>> getTableById(@PathVariable Long id) {
         TableResponse table = tableService.getTableById(id);
         return ResponseEntity.ok(ApiResponse.success("Table retrieved successfully", table));

@@ -21,14 +21,14 @@ public class RecipeItemController {
     private final RecipeItemService recipeItemService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF', 'INVENTORY_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF')")
     public ResponseEntity<ApiResponse<RecipeResponse>> getRecipe(@PathVariable Long menuItemId) {
         var response = recipeItemService.getRecipe(menuItemId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PutMapping
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF')")
     public ResponseEntity<ApiResponse<RecipeResponse>> replaceRecipe(
             @PathVariable Long menuItemId,
             @Valid @RequestBody BatchUpsertRecipeRequest request) {
@@ -37,7 +37,7 @@ public class RecipeItemController {
     }
 
     @PostMapping("/items")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF')")
     public ResponseEntity<ApiResponse<RecipeResponse>> addRecipeItem(
             @PathVariable Long menuItemId,
             @Valid @RequestBody UpsertRecipeItemRequest request) {
@@ -47,7 +47,7 @@ public class RecipeItemController {
     }
 
     @PatchMapping("/items/{ingredientId}")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF')")
     public ResponseEntity<ApiResponse<RecipeResponse>> updateRecipeItem(
             @PathVariable Long menuItemId,
             @PathVariable Long ingredientId,
@@ -57,7 +57,7 @@ public class RecipeItemController {
     }
 
     @DeleteMapping("/items/{ingredientId}")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'KITCHEN_STAFF')")
     public ResponseEntity<ApiResponse<Void>> deleteRecipeItem(
             @PathVariable Long menuItemId,
             @PathVariable Long ingredientId) {
