@@ -22,7 +22,7 @@ public class GeminiClientAdapterImpl implements GeminiClientAdapter {
     public GeminiClientAdapterImpl(
             RestClient geminiRestClient,
             @Value("${app.gemini.api-key:}") String apiKey,
-            @Value("${app.gemini.model:gemini-1.5-flash}") String model) {
+            @Value("${app.gemini.model:gemini-3.5-flash-lite}") String model) {
         this.restClient = geminiRestClient;
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.model = StringUtils.hasText(model) ? model.trim() : "gemini-1.5-flash";

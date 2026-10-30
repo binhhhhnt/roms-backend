@@ -248,6 +248,18 @@ class ServiceSessionServiceImplTest {
         }
 
         @Test
+        @DisplayName("should reject opening session when table account is locked")
+        void shouldRejectWhenTableAccountIsLocked() {
+            User lockedUser = User.builder().id(30L).username("table_locked").role(UserRole.TABLE_ACCOUNT).isActive(false).build();
+            when(tableRepository.findById(1L)).thenReturn(Optional.of(table1));
+            when(userRepository.findByTableId(1L)).thenReturn(Optional.of(lockedUser));
+
+            assertThatThrownBy(() -> sessionService.openSession(1L))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasFieldOrPropertyWithValue("code", "TABLE_ACCOUNT_LOCKED");
+        }
+
+        @Test
         @DisplayName("should throw ResourceNotFoundException when table not found")
         void shouldThrowWhenTableNotFound() {
             when(tableRepository.findById(999L)).thenReturn(Optional.empty());
@@ -387,6 +399,21 @@ class ServiceSessionServiceImplTest {
             assertThatThrownBy(() -> sessionService.transferTable(100L, request))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("Cannot transfer to inactive table");
+        }
+
+        @Test
+        @DisplayName("should reject transferring when target table account is locked")
+        void shouldRejectWhenTargetTableAccountIsLocked() {
+            TransferTableRequest request = TransferTableRequest.builder().toTableId(2L).build();
+            User lockedTargetUser = User.builder().id(31L).username("table_target_locked").role(UserRole.TABLE_ACCOUNT).isActive(false).build();
+
+            when(sessionRepository.findByIdWithDetails(100L)).thenReturn(Optional.of(activeSession));
+            when(tableRepository.findById(2L)).thenReturn(Optional.of(table2));
+            when(userRepository.findByTableId(2L)).thenReturn(Optional.of(lockedTargetUser));
+
+            assertThatThrownBy(() -> sessionService.transferTable(100L, request))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasFieldOrPropertyWithValue("code", "TARGET_TABLE_ACCOUNT_LOCKED");
         }
 
         @Test

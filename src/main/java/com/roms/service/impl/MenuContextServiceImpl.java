@@ -117,15 +117,18 @@ public class MenuContextServiceImpl implements MenuContextService {
 
         // 4. Ánh xạ các món ăn sang cấu trúc dữ liệu tối giản phục vụ cho AI
         List<MenuItemContextDto> contextItems = menuItems.stream().map(item -> {
-            List<String> ingredients = ingredientsMap.getOrDefault(item.getId(), Collections.emptyList());
-            return MenuItemContextDto.builder()
-                    .id(item.getId())
-                    .name(item.getName())
-                    .category(item.getCategory() != null ? item.getCategory().getName() : "Khác")
-                    .price(item.getPrice())
-                    .description(item.getDescription())
-                    .ingredients(ingredients)
-                    .build();
+            List<String> ingredients = new ArrayList<>(ingredientsMap.getOrDefault(item.getId(), Collections.emptyList()));
+            if (ingredients.isEmpty()) {
+                ingredients.addAll(inferIngredientsFromNameAndDesc(item.getName(), item.getDescription()));
+            }
+            return new MenuItemContextDto(
+                    item.getId(),
+                    item.getName(),
+                    item.getCategory() != null ? item.getCategory().getName() : "Khác",
+                    item.getPrice(),
+                    item.getDescription(),
+                    ingredients
+            );
         }).collect(Collectors.toList());
 
         // 5. Chuyển đổi sang JSON và lưu vào Redis Cache
@@ -138,6 +141,24 @@ public class MenuContextServiceImpl implements MenuContextService {
             log.error("Failed to serialize menu context to JSON: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to serialize menu context to JSON", e);
         }
+    }
+
+    private List<String> inferIngredientsFromNameAndDesc(String name, String desc) {
+        List<String> list = new ArrayList<>();
+        String combined = ((name != null ? name : "") + " " + (desc != null ? desc : "")).toLowerCase();
+        if (combined.contains("bo") || combined.contains("bò")) list.add("Thịt bò");
+        if (combined.contains("ga") || combined.contains("gà")) list.add("Thịt gà");
+        if (combined.contains("tom") || combined.contains("tôm")) list.add("Tôm sú");
+        if (combined.contains("heo") || combined.contains("lon") || combined.contains("lợn") || combined.contains("thịt")) list.add("Thịt heo");
+        if (combined.contains("khoai tay") || combined.contains("khoai tây")) list.add("Khoai tây");
+        if (combined.contains("bo toi") || combined.contains("bơ tỏi")) list.add("Bơ tỏi");
+        if (combined.contains("nam huong") || combined.contains("nấm hương") || combined.contains("nấm")) list.add("Nấm hương");
+        if (combined.contains("moc nhi") || combined.contains("mộc nhĩ")) list.add("Mộc nhĩ");
+        if (combined.contains("ca phe") || combined.contains("cà phê")) list.add("Cà phê");
+        if (combined.contains("tra") || combined.contains("trà")) list.add("Trà");
+        if (combined.contains("cam sa") || combined.contains("cam sả") || combined.contains("sả")) list.add("Cam sả");
+        if (combined.contains("dua") || combined.contains("dừa")) list.add("Nước dừa");
+        return list;
     }
 
     /**
@@ -156,7 +177,6 @@ public class MenuContextServiceImpl implements MenuContextService {
         public MenuItemContextDto() {
         }
 
-        @Builder
         public MenuItemContextDto(Long id, String name, String category, BigDecimal price,
                                   String description, List<String> ingredients) {
             this.id = id;
