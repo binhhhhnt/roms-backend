@@ -290,6 +290,7 @@ class ServiceSessionServiceImplTest {
 
             assertThat(result.getStatus()).isEqualTo(ServiceSessionStatus.CLOSED);
             verify(stompEventPublisher).publishAfterCommit(eq(StompDestinations.tables()), any(SessionStatusChangedEvent.class));
+            verify(stompEventPublisher).publishAfterCommit(eq(StompDestinations.sessionOrders(100L)), any(SessionStatusChangedEvent.class));
         }
 
         @Test

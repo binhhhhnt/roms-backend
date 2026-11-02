@@ -235,15 +235,21 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                 savedSession.getId(), session.getTable().getTableCode(), principal.getUsername());
 
         // 7. Phát sự kiện STOMP realtime cập nhật bàn trống sau khi commit
+        SessionStatusChangedEvent sessionClosedEvent = SessionStatusChangedEvent.builder()
+                .sessionId(savedSession.getId())
+                .tableId(session.getTable().getId())
+                .tableName(session.getTable().getTableCode())
+                .status(ServiceSessionStatus.CLOSED)
+                .occurredAt(savedSession.getClosedAt())
+                .build();
+
         stompEventPublisher.publishAfterCommit(
                 StompDestinations.tables(),
-                SessionStatusChangedEvent.builder()
-                        .sessionId(savedSession.getId())
-                        .tableId(session.getTable().getId())
-                        .tableName(session.getTable().getTableCode())
-                        .status(ServiceSessionStatus.CLOSED)
-                        .occurredAt(savedSession.getClosedAt())
-                        .build()
+                sessionClosedEvent
+        );
+        stompEventPublisher.publishAfterCommit(
+                StompDestinations.sessionOrders(savedSession.getId()),
+                sessionClosedEvent
         );
 
         return tableMapper.toSessionResponse(savedSession);
