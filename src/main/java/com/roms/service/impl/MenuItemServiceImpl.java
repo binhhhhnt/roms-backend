@@ -99,7 +99,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         for (Sort.Order order : sort) {
             if (!allowed.contains(order.getProperty())) throw new ValidationException("Unsupported menu sort field: " + order.getProperty());
         }
-        if (sort.isUnsorted()) sort = Sort.by("name");
+        if (sort.isUnsorted()) sort = Sort.by("id");
         if (sort.getOrderFor("id") == null) sort = sort.and(Sort.by("id"));
         return PageRequest.of(pageable.getPageNumber(), Math.min(pageable.getPageSize(), 100), sort);
     }

@@ -45,7 +45,8 @@ class MenuItemReadServiceTest {
     }
     @Test void tabletListUsesDatabaseVisibilityBeforePaginationAndBatchImages() {
         var item = item(8L, true, MenuItemStatus.AVAILABLE);
-        when(menus.findCatalog(3L, EnumSet.of(MenuItemStatus.AVAILABLE), true, page)).thenReturn(new PageImpl<>(List.of(item), page, 1));
+        var insertionOrder = PageRequest.of(0, 20, Sort.by("id"));
+        when(menus.findCatalog(3L, EnumSet.of(MenuItemStatus.AVAILABLE), true, insertionOrder)).thenReturn(new PageImpl<>(List.of(item), insertionOrder, 1));
         var first = MenuItemImage.builder().id(11L).menuItem(item).displayOrder(0).imageUrl("https://example.com/1").build();
         var second = MenuItemImage.builder().id(12L).menuItem(item).displayOrder(1).imageUrl("https://example.com/2").build();
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of(first, second));
@@ -60,6 +61,14 @@ class MenuItemReadServiceTest {
             assertThat(response.getPrice()).isEqualByComparingTo("50000.00");
         });
         verify(images, times(1)).findCatalogImages(any());
+    }
+    @Test void ownerDefaultOrderPutsLaterItemsAfterExistingItemsAcrossPages() {
+        authenticate(UserRole.OWNER);
+        var expected = PageRequest.of(2, 20, Sort.by("id"));
+        when(menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, expected))
+                .thenReturn(new PageImpl<>(List.of(), expected, 40));
+        service.getMenuItems(null, null, 1, PageRequest.of(2, 20));
+        verify(menus).findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, expected);
     }
     @Test void ownerAndInventoryKeepDiscontinuedAndInactiveCategoryAccess() {
         when(menus.findCatalogById(8L)).thenReturn(Optional.of(item(8L, false, MenuItemStatus.DISCONTINUED)));

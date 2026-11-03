@@ -23,7 +23,7 @@ public class MenuItemController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) MenuItemStatus status,
             @RequestParam(defaultValue = "1") int quantity,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success("Menu items retrieved successfully", service.getMenuItems(categoryId, status, quantity, pageable)));
     }
     @GetMapping("/{id}")

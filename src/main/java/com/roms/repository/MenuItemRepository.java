@@ -19,6 +19,12 @@ import org.springframework.data.domain.Pageable;
 @Repository
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     @EntityGraph(attributePaths = "category")
+    @Query("select m from MenuItem m")
+    List<MenuItem> findAllForExcelImport();
+
+    boolean existsByCategoryId(Long categoryId);
+
+    @EntityGraph(attributePaths = "category")
     @Query("select m from MenuItem m where (:categoryId is null or m.category.id = :categoryId) "
             + "and m.status in :statuses and (:tablet = false or m.category.isActive = true)")
     Page<MenuItem> findCatalog(@Param("categoryId") Long categoryId,

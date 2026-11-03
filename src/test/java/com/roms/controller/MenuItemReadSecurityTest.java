@@ -176,7 +176,7 @@ class MenuItemReadSecurityTest {
         activeSession();
         String ownerToken = tokens.generateAccessToken(1L, UserRole.OWNER, 2L);
         menu.setStatus(MenuItemStatus.DISCONTINUED);
-        var page = PageRequest.of(1, 1, Sort.by("name").and(Sort.by("id")));
+        var page = PageRequest.of(1, 1, Sort.by("id"));
         when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.DISCONTINUED), false, page))
                 .thenReturn(new PageImpl<>(List.of(menu), page, 3));
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());

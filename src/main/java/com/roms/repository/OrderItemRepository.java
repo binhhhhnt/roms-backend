@@ -14,6 +14,8 @@ import java.util.Optional;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
+    boolean existsByMenuItemId(Long menuItemId);
+
     List<OrderItem> findByOrderId(Long orderId);
     List<OrderItem> findByStatus(OrderItemStatus status);
 

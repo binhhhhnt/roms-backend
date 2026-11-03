@@ -10,6 +10,7 @@ import java.util.List;
 
 @Repository
 public interface RecipeItemRepository extends JpaRepository<RecipeItem, Long> {
+    void deleteByMenuItemId(Long menuItemId);
 
     @Query("SELECT r FROM RecipeItem r JOIN FETCH r.ingredient WHERE r.menuItem.id = :menuItemId")
     List<RecipeItem> findByMenuItemIdWithIngredient(@Param("menuItemId") Long menuItemId);
