@@ -104,7 +104,7 @@ public final class StompDestinations {
 
         // Tables topic: service staff
         if (dest.equals(TOPIC_TABLES) || dest.startsWith("/topic/tables/")) {
-            return role == UserRole.SERVICE_STAFF;
+            return role == UserRole.SERVICE_STAFF || role == UserRole.TABLE_ACCOUNT;
         }
 
         // Session orders topic: service staff or matching table account
