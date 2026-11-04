@@ -290,6 +290,21 @@ class KitchenServiceImplTest {
     }
 
     @Test
+    @DisplayName("updateOrderItemStatus: throws 403 Forbidden if KITCHEN_STAFF tries to complete an item (READY -> COMPLETED)")
+    void shouldThrowForbiddenWhenKitchenStaffCompletesItem() {
+        authenticate(UserRole.KITCHEN_STAFF);
+        testItem1.setStatus(OrderItemStatus.READY);
+
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
+        when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
+
+        assertThatThrownBy(() -> kitchenService.updateOrderItemStatus(10L, 101L,
+                new UpdateOrderItemStatusRequest(OrderItemStatus.COMPLETED)))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("Only SERVICE_STAFF or OWNER can mark an item COMPLETED");
+    }
+
+    @Test
     @DisplayName("updateOrderItemStatus: throws 409 Conflict on invalid transition (e.g. PENDING -> COMPLETED)")
     void shouldThrowConflictOnInvalidTransition() {
         authenticate(UserRole.KITCHEN_STAFF);

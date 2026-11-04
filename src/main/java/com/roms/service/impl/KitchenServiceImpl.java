@@ -257,7 +257,9 @@ public class KitchenServiceImpl implements KitchenService {
         }
 
         if (current == OrderItemStatus.READY && target == OrderItemStatus.COMPLETED) {
-            // Both SERVICE_STAFF, KITCHEN_STAFF and OWNER can complete/serve the dish
+            if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+                throw new ForbiddenException("Only SERVICE_STAFF or OWNER can mark an item COMPLETED");
+            }
             return;
         }
 
