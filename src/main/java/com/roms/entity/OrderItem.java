@@ -14,10 +14,9 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class OrderItem {
-
-    public OrderItem() {
-    }
 
     public OrderItem(Long id, Order order, MenuItem menuItem, Integer quantity, BigDecimal unitPrice,
                      String note, OrderItemStatus status, String terminationReason, User terminatedBy,
@@ -34,6 +33,8 @@ public class OrderItem {
         this.terminatedAt = terminatedAt;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.taxRate = BigDecimal.valueOf(8.00);
+        this.isVatInclusive = true;
     }
 
     @Id
@@ -53,6 +54,14 @@ public class OrderItem {
 
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
+
+    @Column(name = "tax_rate", nullable = false, precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal taxRate = BigDecimal.valueOf(8.00);
+
+    @Column(name = "is_vat_inclusive", nullable = false)
+    @Builder.Default
+    private Boolean isVatInclusive = true;
 
     @Column(name = "note", length = 255)
     private String note;

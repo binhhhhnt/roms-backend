@@ -64,7 +64,7 @@ public class KitchenServiceImpl implements KitchenService {
             throw new ForbiddenException("Role '" + role + "' cannot view kitchen orders");
         }
 
-        List<Order> orders = orderRepository.findOrdersFiltered(null, status);
+        List<Order> orders = orderRepository.findKitchenOrdersFifo(status);
         return orders.stream()
                 .map(this::mapToKitchenOrderResponse)
                 .collect(Collectors.toList());
@@ -99,14 +99,79 @@ public class KitchenServiceImpl implements KitchenService {
                     "Only PENDING orders can be accepted into COOKING state. Current status: " + order.getStatus());
         }
 
-        // Transition order status to COOKING (no stock deduction!)
         order.setStatus(OrderStatus.COOKING);
-        Order savedOrder = orderRepository.save(order);
+        Order updatedOrder = orderRepository.save(order);
 
-        // Broadcast STOMP event after commit
-        orderEventPublisher.publishOrderStatusChanged(savedOrder, OrderStatus.PENDING, OrderStatus.COOKING);
+        orderEventPublisher.publishOrderStatusChanged(updatedOrder, OrderStatus.PENDING, OrderStatus.COOKING);
 
-        return mapToKitchenOrderResponse(savedOrder);
+        return mapToKitchenOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public KitchenOrderResponse cookAll(Long id) {
+        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
+                .orElseThrow(() -> new ForbiddenException("Authentication required"));
+
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Only KITCHEN_STAFF or OWNER can start cooking order");
+        }
+
+        Order order = orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        refreshEntity(order);
+
+        boolean orderStatusChanged = false;
+        OrderStatus oldOrderStatus = order.getStatus();
+        if (order.getStatus() == OrderStatus.PENDING) {
+            order.setStatus(OrderStatus.COOKING);
+            order = orderRepository.save(order);
+            orderStatusChanged = true;
+        }
+
+        List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(id);
+        for (OrderItem item : items) {
+            if (item.getStatus() == OrderItemStatus.PENDING) {
+                item.setStatus(OrderItemStatus.COOKING);
+                OrderItem savedItem = orderItemRepository.save(item);
+                orderEventPublisher.publishOrderItemStatusChanged(savedItem, OrderItemStatus.PENDING, OrderItemStatus.COOKING);
+            }
+        }
+
+        if (orderStatusChanged) {
+            orderEventPublisher.publishOrderStatusChanged(order, oldOrderStatus, OrderStatus.COOKING);
+        }
+
+        return mapToKitchenOrderResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public KitchenOrderResponse readyAll(Long id) {
+        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
+                .orElseThrow(() -> new ForbiddenException("Authentication required"));
+
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Only KITCHEN_STAFF or OWNER can mark all items ready");
+        }
+
+        Order order = orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+        refreshEntity(order);
+
+        List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(id);
+        for (OrderItem item : items) {
+            if (item.getStatus() == OrderItemStatus.COOKING) {
+                item.setStatus(OrderItemStatus.READY);
+                OrderItem savedItem = orderItemRepository.save(item);
+                orderEventPublisher.publishOrderItemStatusChanged(savedItem, OrderItemStatus.COOKING, OrderItemStatus.READY);
+                orderEventPublisher.publishDishReady(savedItem);
+            }
+        }
+
+        return mapToKitchenOrderResponse(order);
     }
 
     @Override
@@ -119,6 +184,10 @@ public class KitchenServiceImpl implements KitchenService {
         if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER && role != UserRole.SERVICE_STAFF) {
             throw new ForbiddenException("Role '" + role + "' cannot update order item status");
         }
+
+        // Lock parent order first to prevent deadlock
+        orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         OrderItem item = orderItemRepository.findByIdForUpdate(itemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order item not found with id: " + itemId));
@@ -138,12 +207,14 @@ public class KitchenServiceImpl implements KitchenService {
         OrderItem savedItem = orderItemRepository.save(item);
 
         Order parentOrder = item.getOrder();
-        Long sessionId = parentOrder.getServiceSession() != null ? parentOrder.getServiceSession().getId() : null;
-        Long tableId = (parentOrder.getServiceSession() != null && parentOrder.getServiceSession().getTable() != null)
-                ? parentOrder.getServiceSession().getTable().getId() : null;
 
         // Publish STOMP event for item status transition
         orderEventPublisher.publishOrderItemStatusChanged(savedItem, currentStatus, targetStatus);
+
+        // If dish reached READY, emit alert to waitstaff topic
+        if (targetStatus == OrderItemStatus.READY) {
+            orderEventPublisher.publishDishReady(savedItem);
+        }
 
         // If item transitioned to COOKING while parent order is PENDING, advance parent to COOKING
         if (targetStatus == OrderItemStatus.COOKING && parentOrder.getStatus() == OrderStatus.PENDING) {
@@ -231,6 +302,8 @@ public class KitchenServiceImpl implements KitchenService {
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(subtotal)
+                .taxRate(item.getTaxRate())
+                .isVatInclusive(item.getIsVatInclusive())
                 .status(item.getStatus())
                 .note(item.getNote())
                 .terminationReason(item.getTerminationReason())

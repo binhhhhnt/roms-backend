@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -223,14 +224,44 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("Non-TABLE_ACCOUNT (SERVICE_STAFF / KITCHEN_STAFF) cannot cancel orders (403 Forbidden)")
-    void serviceStaffCannotCancelOrder() throws Exception {
-        String token = loginAndGetToken("service01", "Password@123");
+    @DisplayName("SERVICE_STAFF CAN cancel PENDING orders")
+    void serviceStaffCanCancelOrder() throws Exception {
+        String tableToken = loginAndGetToken("table_t01", "Password@123");
+        String serviceToken = loginAndGetToken("service01", "Password@123");
+
+        String orderBody = String.format("""
+                {
+                    "sessionId": %d,
+                    "items": [{"menuItemId": 1, "quantity": 1}]
+                }
+                """, activeSessionTable1.getId());
+
+        MvcResult createResult = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tableToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long orderId = objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/cancel")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Khách đổi ý hủy món\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+    }
+
+    @Test
+    @DisplayName("KITCHEN_STAFF cannot cancel orders (403 Forbidden)")
+    void kitchenStaffCannotCancelOrder() throws Exception {
+        String token = loginAndGetToken("kitchen01", "Password@123");
 
         mockMvc.perform(post("/api/orders/1/cancel")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"Hủy bởi phục vụ\"}"))
+                        .content("{\"reason\":\"Bếp tự hủy\"}"))
                 .andExpect(status().isForbidden());
     }
 

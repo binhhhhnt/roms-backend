@@ -27,7 +27,7 @@ class MenuItemReadServiceTest {
         menus = mock(MenuItemRepository.class); images = mock(MenuItemImageRepository.class);
         availability = mock(MenuAvailabilityService.class);
         service = new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(),
-                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), availability);
+                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class));
         authenticate(UserRole.TABLE_ACCOUNT);
     }
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
@@ -124,7 +124,7 @@ class MenuItemReadServiceTest {
         var recipeRepository = mock(RecipeItemRepository.class);
         var liveAvailability = new MenuAvailabilityServiceImpl(menus, recipeRepository, mock(MenuContextCacheService.class));
         var liveService = new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(),
-                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), liveAvailability);
+                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), liveAvailability, mock(TaxCategoryRepository.class));
         var menu = item(8L, true, MenuItemStatus.AVAILABLE);
         var ingredient = Ingredient.builder().id(5L).name("Ingredient").unit("kg").isActive(true).currentStock(new BigDecimal("10")).build();
         var recipe = RecipeItem.builder().menuItem(menu).ingredient(ingredient).quantityRequired(new BigDecimal("2")).build();

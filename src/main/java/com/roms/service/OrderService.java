@@ -14,6 +14,7 @@ public interface OrderService {
     /**
      * Create a new Order with atomic stock deduction and negative ORDER_CONSUMPTION movement recording.
      * Rejects with 409 Conflict if any ingredient stock is insufficient or menu item is unavailable.
+     * Records snapshot tax_rate and is_vat_inclusive on order items.
      * Emits STOMP event after successful commit.
      *
      * @param request create order request containing session ID and item lines
@@ -41,6 +42,7 @@ public interface OrderService {
 
     /**
      * Cancel an entire Order when in PENDING status.
+     * Allowed by SERVICE_STAFF, OWNER, or matching TABLE_ACCOUNT.
      * Restores deducted ingredient quantities from recorded consumption movements
      * and appends compensating positive movements. Rejects with 409 Conflict if not PENDING.
      *
@@ -52,6 +54,7 @@ public interface OrderService {
 
     /**
      * Cancel an individual OrderItem when in PENDING status.
+     * Allowed by SERVICE_STAFF, OWNER, or matching TABLE_ACCOUNT.
      * Restores deducted ingredient quantities and appends compensating movements.
      * Rejects with 409 Conflict if not PENDING.
      *
@@ -61,4 +64,14 @@ public interface OrderService {
      * @return updated order item response
      */
     OrderItemResponse cancelOrderItem(Long orderId, Long itemId, CancelOrderItemRequest request);
+
+    /**
+     * Waitstaff delivery confirmation: mark a READY item as COMPLETED.
+     * Auto-completes parent order when all non-cancelled items reach COMPLETED.
+     *
+     * @param orderId order ID
+     * @param itemId order item ID
+     * @return updated order item response
+     */
+    OrderItemResponse completeOrderItem(Long orderId, Long itemId);
 }

@@ -14,10 +14,9 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class MenuItem {
-
-    public MenuItem() {
-    }
 
     public MenuItem(Long id, Category category, String name, String description, BigDecimal price,
                     MenuItemStatus status, Boolean isFeatured, LocalDateTime createdAt, LocalDateTime updatedAt) {
@@ -39,6 +38,10 @@ public class MenuItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_category_id")
+    private TaxCategory taxCategory;
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;

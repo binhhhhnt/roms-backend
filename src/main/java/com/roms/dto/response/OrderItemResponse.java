@@ -1,5 +1,6 @@
 package com.roms.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.roms.enums.OrderItemStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,6 +22,13 @@ public class OrderItemResponse {
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
+
+    @JsonProperty("tax_rate")
+    private BigDecimal taxRate;
+
+    @JsonProperty("is_vat_inclusive")
+    private Boolean isVatInclusive;
+
     private OrderItemStatus status;
     private String note;
     private String terminationReason;

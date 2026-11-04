@@ -12,6 +12,8 @@ import java.util.List;
 public class MenuItemReadResponse {
     private Long id;
     private CategoryResponse category;
+    private Long taxCategoryId;
+    private BigDecimal taxRate;
     private String name;
     private String description;
     private BigDecimal price;
@@ -19,6 +21,14 @@ public class MenuItemReadResponse {
     private MenuItemStatus status;
     private List<MenuItemImageResponse> images;
     private Availability availability;
+
+    public Long getTax_category_id() {
+        return taxCategoryId;
+    }
+
+    public BigDecimal getTax_rate() {
+        return taxRate;
+    }
 
     @Getter
     @Builder

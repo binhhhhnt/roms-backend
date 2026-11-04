@@ -45,6 +45,20 @@ public class KitchenController {
         return ResponseEntity.ok(ApiResponse.success("Order accepted by kitchen", response));
     }
 
+    @PostMapping("/{id}/cook-all")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'OWNER')")
+    public ResponseEntity<ApiResponse<KitchenOrderResponse>> cookAll(@PathVariable("id") Long id) {
+        KitchenOrderResponse response = kitchenService.cookAll(id);
+        return ResponseEntity.ok(ApiResponse.success("All pending items marked as cooking", response));
+    }
+
+    @PostMapping("/{id}/ready-all")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'OWNER')")
+    public ResponseEntity<ApiResponse<KitchenOrderResponse>> readyAll(@PathVariable("id") Long id) {
+        KitchenOrderResponse response = kitchenService.readyAll(id);
+        return ResponseEntity.ok(ApiResponse.success("All cooking items marked as ready", response));
+    }
+
     @PatchMapping("/{id}/items/{itemId}/status")
     @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<OrderItemResponse>> updateOrderItemStatus(

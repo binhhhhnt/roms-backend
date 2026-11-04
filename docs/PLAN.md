@@ -6,11 +6,10 @@
 ## 1. Preparation
 
 - Verify the current application boots and connects to PostgreSQL.
-- Confirm `V1__init_schema.sql` is consistent with the actual database and existing entities. Apply an approved V2 migration reconciling `orders` and `order_items` status constraints; do not edit an already applied/shared V1.
-- Transition Hibernate schema handling from `update` to `validate` once migration parity is verified.
-- Agree on shared Git branch/PR conventions, JWT/refresh-token and OTP contracts, API response/error format, and migration version coordination.
-- Confirm the five roles present in V1 (`OWNER`, `SERVICE_STAFF`, `KITCHEN_STAFF`, `INVENTORY_STAFF`, `TABLE_ACCOUNT`); V1 has no separate roles/permissions tables.
-- Approve dependencies and contracts for WebSocket/STOMP, Redis, and Gemini before implementing integrations.
+- Confirm `V1__init_schema.sql`, `V2__update_order_status.sql`, and `V3__seed_data.sql` are applied.
+- Apply Flyway `V4__restaurant_settings_and_tax.sql` for real restaurant operations (VAT settings, tax categories, order items tax snapshot).
+- Add `org.apache.poi:poi-ooxml` for Excel template download, export, and transactional import.
+- Confirm role access: `SERVICE_STAFF` directly creates orders and cancels PENDING orders; `OWNER` has full administrative and cancellation authority; `TABLE_ACCOUNT` is retained for guest viewing/AI/future QR; `KITCHEN_STAFF` operates KDS.
 
 ## 2. Implementation Phases
 
@@ -23,14 +22,32 @@
 | P4 — Stock & Purchasing | Ingredient inventory, stock adjustments/alerts, purchasing records, expenses | P2; database contracts |
 | P5 — AI & Reporting | Gemini menu assistance; Redis menu-context cache and invalidation; reporting endpoints | P2 menu/ingredients; current availability API; approved Gemini contract |
 | P6 — Integration & Hardening | Cross-feature tests, JWT/OTP security tests, realtime delivery, cache invalidation, API stabilization | Relevant features completed |
+| **P7 — Production Transition (Current)** | **V4 Migration, Restaurant Settings & VAT, Tax Categories, Menu/Ingredient Excel Import/Export, Staff Direct Ordering, KDS Batch Actions (`cook-all`/`ready-all`), and Anti-Deadlock/N+1 Hardening** | P0–P6 completed |
 
-Order lifecycle: overall `PENDING → COOKING → COMPLETED` or `PENDING → CANCELLED`; per item `PENDING → COOKING → READY → COMPLETED` or `PENDING → CANCELLED`. An order stays `COOKING` until all non-cancelled items are `COMPLETED`. Cancel only while the target order/item is `PENDING`; handle orders with no active items explicitly.
-
-Redis has **two approved uses only**: password-reset OTP (TTL and limited attempts) and relatively stable Gemini menu context (items/categories/descriptions/ingredients). Availability is read live from PostgreSQL and validated before recommendations and orders; menu-context cache is invalidated after committed menu/ingredient edits. No Redis rate limiting or WebSocket broker.
-
-WebSocket/STOMP delivers notifications after successful transaction commit; REST remains authoritative. Gemini cannot change orders or database records.
-
-Phases describe **dependencies, not strict serial execution**. Independent, well-defined tasks may run in parallel after their shared contracts are agreed.
+### Phase 7 Detail Breakdown:
+1. **P7.1 — Database Migration V4**:
+   - `restaurant_settings` (`menu_price_includes_vat BOOLEAN NOT NULL DEFAULT TRUE`).
+   - `tax_categories` (`id BIGSERIAL PRIMARY KEY`, `rate DECIMAL(5,2) NOT NULL UNIQUE CHECK (rate >= 0)`).
+   - `menu_items.tax_category_id` (Foreign Key).
+   - `order_items` snapshot columns (`tax_rate DECIMAL(5,2)`, `is_vat_inclusive BOOLEAN`).
+2. **P7.2 — Settings & Tax API**:
+   - `GET /api/settings`, `PUT /api/settings` (OWNER).
+   - `GET /api/tax-categories`, `POST /api/tax-categories` (with concurrent find-or-create logic).
+3. **P7.3 — Staff Direct Ordering & Cancellation**:
+   - Allow `SERVICE_STAFF` and `OWNER` to create orders under active sessions.
+   - Allow `SERVICE_STAFF` and `OWNER` to cancel `PENDING` orders and order items with automatic stock restoration.
+4. **P7.4 — KDS Batch Actions & Serving Completion**:
+   - `POST /api/kitchen/orders/{id}/cook-all` (PENDING $\rightarrow$ COOKING).
+   - `POST /api/kitchen/orders/{id}/ready-all` (COOKING $\rightarrow$ READY).
+   - `PATCH /api/orders/{id}/items/{itemId}/complete` (READY $\rightarrow$ COMPLETED by staff).
+   - STOMP event to `/topic/service/ready-dishes` notifying service staff when dishes are ready.
+5. **P7.5 — Excel Import / Export**:
+   - Menu items: template download, export current catalog, import with duplicate updating and auto-creation of missing tax rates.
+   - Ingredients: template download, export current stock, import with duplicate updating and initial stock movement tracking.
+6. **P7.6 — Concurrency & Performance Hardening**:
+   - Deterministic ascending lock ordering (`ingredient_id ASC`) to eliminate deadlocks.
+   - Pessimistic locking to prevent race conditions.
+   - `JOIN FETCH` / `@EntityGraph` to eliminate N+1 queries in KDS, catalog, and export queries.
 
 ## 3. Team Workflow
 
@@ -41,13 +58,6 @@ Phases describe **dependencies, not strict serial execution**. Independent, well
 5. Run relevant checks, review the diff, and prepare a PR; do not alter other owners' work without agreement.
 6. Update task status with evidence of checks and blockers.
 
-## 4. Shared Change Policy
-
-- Business requirement changes require team approval and PRD updates.
-- Architecture/dependency changes require approval and architecture updates.
-- Applied/shared Flyway migrations are immutable; coordinate the next migration version before merge.
-- API contract changes require coordination with affected backend owners and the separate frontend team.
-
-## 5. Completion Gate
+## 4. Completion Gate
 
 A task can be marked `Done` only after implementation matches approved requirements, relevant tests/checks pass (or limitations are documented), no unrelated changes are included, and the PR review/merge policy is satisfied.

@@ -10,10 +10,10 @@ import java.util.List;
 public interface KitchenService {
 
     /**
-     * Retrieve orders for kitchen workflow, optionally filtered by status (e.g. PENDING, COOKING).
+     * Retrieve orders for kitchen workflow in FIFO order, optionally filtered by status (e.g. PENDING, COOKING).
      *
      * @param status optional order status filter
-     * @return list of kitchen orders
+     * @return list of kitchen orders in FIFO order
      */
     List<KitchenOrderResponse> getKitchenOrders(OrderStatus status);
 
@@ -33,6 +33,24 @@ public interface KitchenService {
      * @return updated kitchen order response
      */
     KitchenOrderResponse acceptOrder(Long id);
+
+    /**
+     * Batch action: "Nấu tất cả".
+     * Advances parent order to COOKING (if PENDING) and transitions all PENDING items to COOKING.
+     *
+     * @param id order ID
+     * @return updated kitchen order response
+     */
+    KitchenOrderResponse cookAll(Long id);
+
+    /**
+     * Batch action: "Ra tất cả".
+     * Transitions all COOKING items to READY, and notifies service staff.
+     *
+     * @param id order ID
+     * @return updated kitchen order response
+     */
+    KitchenOrderResponse readyAll(Long id);
 
     /**
      * Update an individual OrderItem status (PENDING -> COOKING -> READY -> COMPLETED).

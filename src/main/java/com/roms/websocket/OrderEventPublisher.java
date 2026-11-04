@@ -3,6 +3,7 @@ package com.roms.websocket;
 import com.roms.dto.event.KitchenOrderEvent;
 import com.roms.dto.event.OrderItemStatusChangedEvent;
 import com.roms.dto.event.OrderStatusChangedEvent;
+import com.roms.dto.event.ReadyDishesEvent;
 import com.roms.entity.Order;
 import com.roms.entity.OrderItem;
 import com.roms.enums.OrderItemStatus;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * Dedicated event publisher for Order and Kitchen WebSocket STOMP notifications (BE-021).
+ * Dedicated event publisher for Order and Kitchen WebSocket STOMP notifications (BE-021, BE-037).
  * All notifications are published strictly AFTER database transaction commit.
  */
 @Slf4j
@@ -64,13 +65,13 @@ public class OrderEventPublisher {
     }
 
     /**
-     * Publish events when an order status changes (e.g., accepted into COOKING, cancelled, completed):
+     * Publish events when an order's overall status changes (e.g., PENDING -> COOKING -> COMPLETED, or CANCELLED):
      * - OrderStatusChangedEvent to /topic/kitchen/orders
      * - OrderStatusChangedEvent to /topic/session/{sessionId}/orders
      *
-     * @param order order whose status changed
-     * @param oldStatus previous order status
-     * @param newStatus updated order status
+     * @param order updated order
+     * @param oldStatus previous status
+     * @param newStatus updated status
      */
     public void publishOrderStatusChanged(Order order, OrderStatus oldStatus, OrderStatus newStatus) {
         Long sessionId = order.getServiceSession() != null ? order.getServiceSession().getId() : null;
@@ -121,5 +122,34 @@ public class OrderEventPublisher {
         if (sessionId != null) {
             stompEventPublisher.publishAfterCommit(StompDestinations.sessionOrders(sessionId), event);
         }
+    }
+
+    /**
+     * Publish ready dish alert to service staff topic (/topic/service/ready-dishes).
+     *
+     * @param item ready order item
+     */
+    public void publishDishReady(OrderItem item) {
+        Order parentOrder = item.getOrder();
+        Long sessionId = (parentOrder != null && parentOrder.getServiceSession() != null)
+                ? parentOrder.getServiceSession().getId() : null;
+        Long tableId = (parentOrder != null && parentOrder.getServiceSession() != null && parentOrder.getServiceSession().getTable() != null)
+                ? parentOrder.getServiceSession().getTable().getId() : null;
+        String tableCode = (parentOrder != null && parentOrder.getServiceSession() != null && parentOrder.getServiceSession().getTable() != null)
+                ? parentOrder.getServiceSession().getTable().getTableCode() : null;
+
+        ReadyDishesEvent readyEvent = ReadyDishesEvent.builder()
+                .orderId(parentOrder != null ? parentOrder.getId() : null)
+                .sessionId(sessionId)
+                .tableId(tableId)
+                .tableCode(tableCode)
+                .orderItemId(item.getId())
+                .menuItemName(item.getMenuItem() != null ? item.getMenuItem().getName() : null)
+                .quantity(item.getQuantity())
+                .note(item.getNote())
+                .readyAt(LocalDateTime.now())
+                .build();
+
+        stompEventPublisher.publishAfterCommit(StompDestinations.serviceReadyDishes(), readyEvent);
     }
 }

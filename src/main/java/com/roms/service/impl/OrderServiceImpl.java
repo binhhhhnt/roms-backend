@@ -1,6 +1,5 @@
 package com.roms.service.impl;
 
-import com.roms.dto.event.OrderStatusChangedEvent;
 import com.roms.dto.request.CancelOrderItemRequest;
 import com.roms.dto.request.CancelOrderRequest;
 import com.roms.dto.request.CreateOrderItemRequest;
@@ -16,6 +15,7 @@ import com.roms.repository.*;
 import com.roms.security.SecurityUtils;
 import com.roms.security.UserPrincipal;
 import com.roms.service.OrderService;
+import com.roms.service.RestaurantSettingService;
 import com.roms.websocket.OrderEventPublisher;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -42,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
     private final StockMovementRepository stockMovementRepository;
     private final ServiceSessionRepository serviceSessionRepository;
     private final UserRepository userRepository;
+    private final RestaurantSettingService restaurantSettingService;
     private final OrderEventPublisher orderEventPublisher;
 
     @PersistenceContext
@@ -124,41 +125,46 @@ public class OrderServiceImpl implements OrderService {
             lockedIngredients.put(ingId, ing);
         }
 
-        // 3. Check stock sufficiency: if ANY ingredient is insufficient, reject with 409 Conflict
-        Set<Long> insufficientIngIds = new LinkedHashSet<>();
+        // 3. Check sufficiency for each locked ingredient; reject entire order if any is insufficient
+        List<Long> insufficientIngIds = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : aggregatedRequirements.entrySet()) {
-            Ingredient ing = lockedIngredients.get(entry.getKey());
+            Long ingId = entry.getKey();
             BigDecimal required = entry.getValue();
-            if (!Boolean.TRUE.equals(ing.getIsActive()) || ing.getCurrentStock().compareTo(required) < 0) {
-                insufficientIngIds.add(entry.getKey());
+            Ingredient ing = lockedIngredients.get(ingId);
+            if (ing.getCurrentStock().compareTo(required) < 0) {
+                insufficientIngIds.add(ingId);
             }
         }
 
         if (!insufficientIngIds.isEmpty()) {
             List<Map<String, Object>> affectedMenuItems = new ArrayList<>();
+            List<Map<String, Object>> insufficientList = new ArrayList<>();
+
             for (CreateOrderItemRequest line : request.getItems()) {
-                MenuItem menuItem = menuItemMap.get(line.getMenuItemId());
-                List<RecipeItem> recipes = recipeMap.get(menuItem.getId());
-                boolean affected = recipes != null && recipes.stream()
-                        .anyMatch(r -> r.getIngredient() != null && insufficientIngIds.contains(r.getIngredient().getId()));
-                if (affected) {
+                MenuItem item = menuItemMap.get(line.getMenuItemId());
+                List<RecipeItem> recipes = recipeMap.get(item.getId());
+                boolean usesInsufficient = recipes.stream()
+                        .anyMatch(r -> insufficientIngIds.contains(r.getIngredient().getId()));
+
+                if (usesInsufficient) {
                     Map<String, Object> itemDetail = new LinkedHashMap<>();
-                    itemDetail.put("menuItemId", menuItem.getId());
-                    itemDetail.put("menuItemName", menuItem.getName());
+                    itemDetail.put("menuItemId", item.getId());
+                    itemDetail.put("name", item.getName());
                     itemDetail.put("requestedQuantity", line.getQuantity());
                     affectedMenuItems.add(itemDetail);
                 }
             }
 
-            List<Map<String, Object>> insufficientList = new ArrayList<>();
             for (Long ingId : insufficientIngIds) {
                 Ingredient ing = lockedIngredients.get(ingId);
-                if (ing != null) {
-                    Map<String, Object> ingDetail = new LinkedHashMap<>();
-                    ingDetail.put("ingredientId", ing.getId());
-                    ingDetail.put("ingredientName", ing.getName());
-                    insufficientList.add(ingDetail);
-                }
+                BigDecimal required = aggregatedRequirements.get(ingId);
+                Map<String, Object> ingDetail = new LinkedHashMap<>();
+                ingDetail.put("ingredientId", ing.getId());
+                ingDetail.put("name", ing.getName());
+                ingDetail.put("currentStock", ing.getCurrentStock());
+                ingDetail.put("requiredStock", required);
+                ingDetail.put("unit", ing.getUnit());
+                insufficientList.add(ingDetail);
             }
 
             Map<String, Object> errorDetails = new LinkedHashMap<>();
@@ -184,14 +190,23 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
 
         // 5. Persist OrderItems, deduct stock, and record negative ORDER_CONSUMPTION movements
+        boolean menuPriceIncludesVat = restaurantSettingService.isMenuPriceIncludesVat();
         List<OrderItem> savedItems = new ArrayList<>();
+
         for (CreateOrderItemRequest line : request.getItems()) {
             MenuItem menuItem = menuItemMap.get(line.getMenuItemId());
+
+            BigDecimal taxRate = (menuItem.getTaxCategory() != null && menuItem.getTaxCategory().getRate() != null)
+                    ? menuItem.getTaxCategory().getRate()
+                    : BigDecimal.valueOf(8.00);
+
             OrderItem item = OrderItem.builder()
                     .order(savedOrder)
                     .menuItem(menuItem)
                     .quantity(line.getQuantity())
                     .unitPrice(menuItem.getPrice())
+                    .taxRate(taxRate)
+                    .isVatInclusive(menuPriceIncludesVat)
                     .note(line.getNote())
                     .status(OrderItemStatus.PENDING)
                     .build();
@@ -218,7 +233,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 6. Broadcast STOMP events after commit
+        // Broadcast STOMP events after commit
         orderEventPublisher.publishOrderCreated(savedOrder, savedItems.size());
 
         return mapToOrderResponse(savedOrder, savedItems);
@@ -286,14 +301,17 @@ public class OrderServiceImpl implements OrderService {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
-        if (currentUser.getRole() != UserRole.TABLE_ACCOUNT) {
-            throw new ForbiddenException("Only table accounts can cancel orders");
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.TABLE_ACCOUNT && role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Role '" + role + "' is not permitted to cancel orders");
         }
 
-        Long sessionTableId = order.getServiceSession().getTable() != null
-                ? order.getServiceSession().getTable().getId() : null;
-        if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-            throw new ForbiddenException("Cannot cancel order from other tables");
+        if (role == UserRole.TABLE_ACCOUNT) {
+            Long sessionTableId = order.getServiceSession().getTable() != null
+                    ? order.getServiceSession().getTable().getId() : null;
+            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
+                throw new ForbiddenException("Cannot cancel order from other tables");
+            }
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
@@ -337,14 +355,17 @@ public class OrderServiceImpl implements OrderService {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
-        if (currentUser.getRole() != UserRole.TABLE_ACCOUNT) {
-            throw new ForbiddenException("Only table accounts can cancel order items");
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.TABLE_ACCOUNT && role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Role '" + role + "' is not permitted to cancel order items");
         }
 
-        Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
-                ? item.getOrder().getServiceSession().getTable().getId() : null;
-        if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-            throw new ForbiddenException("Cannot cancel order item from other tables");
+        if (role == UserRole.TABLE_ACCOUNT) {
+            Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
+                    ? item.getOrder().getServiceSession().getTable().getId() : null;
+            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
+                throw new ForbiddenException("Cannot cancel item from other tables");
+            }
         }
 
         if (item.getStatus() != OrderItemStatus.PENDING) {
@@ -357,91 +378,128 @@ public class OrderServiceImpl implements OrderService {
 
         cancelAndRestoreItem(item, reason, canceller);
 
-        // Check parent order state transitions
+        // Check if all non-cancelled items in the parent order are resolved
         Order parentOrder = item.getOrder();
         List<OrderItem> allItems = orderItemRepository.findByOrderId(parentOrder.getId());
-        List<OrderItem> activeItems = allItems.stream()
-                .filter(i -> i.getStatus() != OrderItemStatus.CANCELLED)
-                .toList();
+        boolean allCancelled = allItems.stream().allMatch(i -> i.getStatus() == OrderItemStatus.CANCELLED);
 
-        if (activeItems.isEmpty()) {
-            OrderStatus oldStatus = parentOrder.getStatus();
-            if (oldStatus != OrderStatus.CANCELLED) {
-                parentOrder.setStatus(OrderStatus.CANCELLED);
-                parentOrder.setTerminationReason(reason != null ? reason : "All items in the order were cancelled");
-                parentOrder.setTerminatedBy(canceller);
-                parentOrder.setTerminatedAt(LocalDateTime.now());
-                orderRepository.save(parentOrder);
-                orderEventPublisher.publishOrderStatusChanged(parentOrder, oldStatus, OrderStatus.CANCELLED);
-            }
-        } else {
-            boolean allActiveCompleted = activeItems.stream().allMatch(i -> i.getStatus() == OrderItemStatus.COMPLETED);
-            if (allActiveCompleted) {
-                parentOrder.setStatus(OrderStatus.COMPLETED);
-                orderRepository.save(parentOrder);
-                orderEventPublisher.publishOrderStatusChanged(parentOrder, OrderStatus.COOKING, OrderStatus.COMPLETED);
-            }
+        if (allCancelled && parentOrder.getStatus() == OrderStatus.PENDING) {
+            parentOrder.setStatus(OrderStatus.CANCELLED);
+            parentOrder.setTerminationReason("All items cancelled");
+            parentOrder.setTerminatedBy(canceller);
+            parentOrder.setTerminatedAt(LocalDateTime.now());
+            orderRepository.save(parentOrder);
+            orderEventPublisher.publishOrderStatusChanged(parentOrder, OrderStatus.PENDING, OrderStatus.CANCELLED);
         }
 
+        // Broadcast STOMP item status change event
         orderEventPublisher.publishOrderItemStatusChanged(item, OrderItemStatus.PENDING, OrderItemStatus.CANCELLED);
 
         return mapToOrderItemResponse(item);
     }
 
+    @Override
+    @Transactional
+    public OrderItemResponse completeOrderItem(Long orderId, Long itemId) {
+        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
+                .orElseThrow(() -> new ForbiddenException("Authentication required"));
+
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Role '" + role + "' cannot complete order items");
+        }
+
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        refreshEntity(order);
+
+        OrderItem item = orderItemRepository.findByIdForUpdate(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order item not found with id: " + itemId));
+        refreshEntity(item);
+
+        if (!item.getOrder().getId().equals(orderId)) {
+            throw new ResourceNotFoundException("Order item #" + itemId + " does not belong to Order #" + orderId);
+        }
+
+        if (item.getStatus() != OrderItemStatus.READY) {
+            throw new BusinessRuleException("INVALID_ITEM_STATUS",
+                    "Only READY items can be marked as COMPLETED. Current status: " + item.getStatus());
+        }
+
+        item.setStatus(OrderItemStatus.COMPLETED);
+        OrderItem savedItem = orderItemRepository.save(item);
+
+        // Check if all non-cancelled items in parent order are COMPLETED
+        List<OrderItem> allItems = orderItemRepository.findByOrderIdWithMenuItem(orderId);
+        boolean allFinished = allItems.stream()
+                .filter(i -> i.getStatus() != OrderItemStatus.CANCELLED)
+                .allMatch(i -> i.getId().equals(itemId) || i.getStatus() == OrderItemStatus.COMPLETED);
+
+        long activeCount = allItems.stream().filter(i -> i.getStatus() != OrderItemStatus.CANCELLED).count();
+        if (allFinished && activeCount > 0 && order.getStatus() != OrderStatus.COMPLETED) {
+            OrderStatus oldStatus = order.getStatus();
+            order.setStatus(OrderStatus.COMPLETED);
+            Order savedOrder = orderRepository.save(order);
+            orderEventPublisher.publishOrderStatusChanged(savedOrder, oldStatus, OrderStatus.COMPLETED);
+        }
+
+        orderEventPublisher.publishOrderItemStatusChanged(savedItem, OrderItemStatus.READY, OrderItemStatus.COMPLETED);
+
+        return mapToOrderItemResponse(savedItem);
+    }
+
+    /**
+     * Restore stock and cancel item based on recorded ORDER_CONSUMPTION movements.
+     */
     private void cancelAndRestoreItem(OrderItem item, String reason, User canceller) {
+        List<StockMovement> originalMovements = stockMovementRepository.findByOrderItemId(item.getId());
+
+        boolean alreadyRestored = originalMovements.stream()
+                .anyMatch(m -> m.getQuantityChange().compareTo(BigDecimal.ZERO) > 0);
+
+        if (!alreadyRestored) {
+            List<StockMovement> consumptionMovements = originalMovements.stream()
+                    .filter(m -> m.getMovementType() == StockMovementType.ORDER_CONSUMPTION
+                            && m.getQuantityChange().compareTo(BigDecimal.ZERO) < 0)
+                    .toList();
+
+            List<Long> ingIds = consumptionMovements.stream()
+                    .map(m -> m.getIngredient().getId())
+                    .sorted()
+                    .toList();
+
+            Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
+            for (Long ingId : ingIds) {
+                Ingredient ing = ingredientRepository.findByIdForUpdate(ingId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + ingId));
+                refreshEntity(ing);
+                lockedIngredients.put(ingId, ing);
+            }
+
+            for (StockMovement m : consumptionMovements) {
+                BigDecimal consumed = m.getQuantityChange().abs();
+                Ingredient ing = lockedIngredients.get(m.getIngredient().getId());
+                BigDecimal newBalance = ing.getCurrentStock().add(consumed);
+                ing.setCurrentStock(newBalance);
+                ingredientRepository.save(ing);
+
+                StockMovement compensating = StockMovement.builder()
+                        .ingredient(ing)
+                        .movementType(StockMovementType.ORDER_CONSUMPTION)
+                        .quantityChange(consumed) // Positive for restoration
+                        .balanceAfter(newBalance)
+                        .orderItem(item)
+                        .note("Item #" + item.getId() + " cancellation stock restoration")
+                        .build();
+                stockMovementRepository.save(compensating);
+            }
+        }
+
         item.setStatus(OrderItemStatus.CANCELLED);
         item.setTerminationReason(reason);
         item.setTerminatedBy(canceller);
         item.setTerminatedAt(LocalDateTime.now());
         orderItemRepository.save(item);
-
-        List<StockMovement> movements = stockMovementRepository.findByOrderItemId(item.getId());
-
-        // Check idempotency: if compensating positive movement already exists, do not restore again
-        boolean alreadyRestored = movements.stream()
-                .anyMatch(m -> m.getQuantityChange().compareTo(BigDecimal.ZERO) > 0);
-        if (alreadyRestored) {
-            log.warn("OrderItem #{} already has compensating stock movements; skipping restoration", item.getId());
-            return;
-        }
-
-        List<StockMovement> consumptions = movements.stream()
-                .filter(m -> m.getQuantityChange().compareTo(BigDecimal.ZERO) < 0)
-                .toList();
-
-        // Lock ingredients in ascending order to prevent deadlocks
-        List<Long> ingIds = consumptions.stream()
-                .map(m -> m.getIngredient().getId())
-                .distinct()
-                .sorted()
-                .toList();
-
-        Map<Long, Ingredient> lockedIngs = new HashMap<>();
-        for (Long ingId : ingIds) {
-            Ingredient ing = ingredientRepository.findByIdForUpdate(ingId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + ingId));
-            refreshEntity(ing);
-            lockedIngs.put(ingId, ing);
-        }
-
-        // Restore stock based on historical deduction movements and append compensating movements
-        for (StockMovement consumption : consumptions) {
-            Ingredient ing = lockedIngs.get(consumption.getIngredient().getId());
-            BigDecimal restoredQty = consumption.getQuantityChange().abs();
-            BigDecimal newBalance = ing.getCurrentStock().add(restoredQty);
-            ing.setCurrentStock(newBalance);
-            ingredientRepository.save(ing);
-
-            StockMovement compensating = StockMovement.builder()
-                    .ingredient(ing)
-                    .movementType(StockMovementType.ORDER_CONSUMPTION)
-                    .quantityChange(restoredQty) // Positive compensating movement
-                    .balanceAfter(newBalance)
-                    .orderItem(item)
-                    .note("Compensating restoration for cancelled OrderItem #" + item.getId())
-                    .build();
-            stockMovementRepository.save(compensating);
-        }
     }
 
     private OrderResponse mapToOrderResponse(Order order, List<OrderItem> items) {
@@ -490,6 +548,8 @@ public class OrderServiceImpl implements OrderService {
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(subtotal)
+                .taxRate(item.getTaxRate())
+                .isVatInclusive(item.getIsVatInclusive())
                 .status(item.getStatus())
                 .note(item.getNote())
                 .terminationReason(item.getTerminationReason())

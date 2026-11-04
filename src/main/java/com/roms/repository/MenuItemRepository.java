@@ -22,16 +22,21 @@ import java.util.Optional;
 @Repository
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "taxCategory"})
     @Query("select m from MenuItem m where (:categoryId is null or m.category.id = :categoryId) "
             + "and m.status in :statuses and (:tablet = false or m.category.isActive = true)")
     Page<MenuItem> findCatalog(@Param("categoryId") Long categoryId,
                              @Param("statuses") Collection<MenuItemStatus> statuses,
                              @Param("tablet") boolean tablet, Pageable pageable);
 
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "taxCategory"})
     @Query("select m from MenuItem m where m.id = :id")
     Optional<MenuItem> findCatalogById(@Param("id") Long id);
+
+    /**
+     * Tìm kiếm món ăn theo tên.
+     */
+    Optional<MenuItem> findByName(String name);
 
     /**
      * Tìm danh sách món ăn theo trạng thái kinh doanh.
@@ -71,4 +76,10 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      */
     @Query("SELECT m FROM MenuItem m JOIN FETCH m.category WHERE m.isFeatured = true AND m.status = 'AVAILABLE'")
     List<MenuItem> findFeaturedAvailableWithCategory();
+
+    /**
+     * Truy xuất toàn bộ danh mục món ăn kèm danh mục và phân loại thuế để xuất Excel, tránh N+1.
+     */
+    @Query("SELECT m FROM MenuItem m LEFT JOIN FETCH m.category LEFT JOIN FETCH m.taxCategory ORDER BY m.id ASC")
+    List<MenuItem> findAllWithCategoryAndTaxCategory();
 }

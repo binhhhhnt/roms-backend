@@ -22,6 +22,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o FROM Order o WHERE (:sessionId IS NULL OR o.serviceSession.id = :sessionId) AND (:status IS NULL OR o.status = :status) ORDER BY o.createdAt DESC")
     List<Order> findOrdersFiltered(@Param("sessionId") Long sessionId, @Param("status") OrderStatus status);
 
+    @Query("SELECT o FROM Order o " +
+           "LEFT JOIN FETCH o.serviceSession s " +
+           "LEFT JOIN FETCH s.table " +
+           "WHERE (:status IS NULL OR o.status = :status) " +
+           "ORDER BY o.createdAt ASC")
+    List<Order> findKitchenOrdersFifo(@Param("status") OrderStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);

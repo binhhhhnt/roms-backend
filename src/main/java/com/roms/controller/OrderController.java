@@ -49,7 +49,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('TABLE_ACCOUNT', 'SERVICE_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @PathVariable("id") Long id,
             @RequestBody(required = false) CancelOrderRequest request) {
@@ -58,12 +58,21 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/items/{itemId}/cancel")
-    @PreAuthorize("hasRole('TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('TABLE_ACCOUNT', 'SERVICE_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<OrderItemResponse>> cancelOrderItem(
             @PathVariable("id") Long id,
             @PathVariable("itemId") Long itemId,
             @RequestBody(required = false) CancelOrderItemRequest request) {
         OrderItemResponse response = orderService.cancelOrderItem(id, itemId, request);
         return ResponseEntity.ok(ApiResponse.success("Order item cancelled successfully", response));
+    }
+
+    @PatchMapping("/{id}/items/{itemId}/complete")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    public ResponseEntity<ApiResponse<OrderItemResponse>> completeOrderItem(
+            @PathVariable("id") Long id,
+            @PathVariable("itemId") Long itemId) {
+        OrderItemResponse response = orderService.completeOrderItem(id, itemId);
+        return ResponseEntity.ok(ApiResponse.success("Order item marked as completed", response));
     }
 }

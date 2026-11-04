@@ -68,6 +68,9 @@ class OrderServiceImplTest {
     @Mock
     private OrderEventPublisher orderEventPublisher;
 
+    @Mock
+    private RestaurantSettingService restaurantSettingService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -116,6 +119,8 @@ class OrderServiceImplTest {
                 .currentStock(BigDecimal.valueOf(10.0))
                 .isActive(true)
                 .build();
+
+        lenient().when(restaurantSettingService.isMenuPriceIncludesVat()).thenReturn(true);
 
         recipePho = RecipeItem.builder()
                 .id(501L)
@@ -555,8 +560,8 @@ class OrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("cancelOrder: throws 403 Forbidden if non-TABLE_ACCOUNT tries to cancel order")
-    void shouldThrowForbiddenWhenNonTableAccountCancelsOrder() {
+    @DisplayName("cancelOrder: throws 403 Forbidden if non-permitted role tries to cancel order")
+    void shouldThrowForbiddenWhenNonPermittedRoleCancelsOrder() {
         authenticate(UserRole.KITCHEN_STAFF, null);
 
         Order order = Order.builder()
@@ -569,13 +574,34 @@ class OrderServiceImplTest {
 
         assertThatThrownBy(() -> orderService.cancelOrder(901L, new CancelOrderRequest("Lý do")))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Only table accounts can cancel orders");
+                .hasMessageContaining("is not permitted to cancel orders");
     }
 
     @Test
-    @DisplayName("cancelOrderItem: throws 403 Forbidden if non-TABLE_ACCOUNT tries to cancel order item")
-    void shouldThrowForbiddenWhenNonTableAccountCancelsOrderItem() {
+    @DisplayName("cancelOrder: allows SERVICE_STAFF to cancel PENDING order")
+    void shouldAllowServiceStaffToCancelOrder() {
         authenticate(UserRole.SERVICE_STAFF, null);
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.PENDING)
+                .build();
+
+        when(orderRepository.findByIdForUpdate(901L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderItemRepository.findByOrderIdWithMenuItem(901L)).thenReturn(Collections.emptyList());
+
+        OrderResponse response = orderService.cancelOrder(901L, new CancelOrderRequest("Khách đổi ý"));
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("cancelOrderItem: throws 403 Forbidden if non-permitted role tries to cancel order item")
+    void shouldThrowForbiddenWhenNonPermittedRoleCancelsOrderItem() {
+        authenticate(UserRole.KITCHEN_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -595,6 +621,77 @@ class OrderServiceImplTest {
 
         assertThatThrownBy(() -> orderService.cancelOrderItem(901L, 801L, new CancelOrderItemRequest("Lý do")))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Only table accounts can cancel order items");
+                .hasMessageContaining("is not permitted to cancel order items");
+    }
+
+    @Test
+    @DisplayName("completeOrderItem: SERVICE_STAFF marks READY item as COMPLETED and auto-completes order")
+    void shouldCompleteOrderItemSuccessfully() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COOKING)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(menuItemPho)
+                .quantity(1)
+                .unitPrice(BigDecimal.valueOf(65000))
+                .status(OrderItemStatus.READY)
+                .build();
+
+        when(orderRepository.findByIdForUpdate(901L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByIdForUpdate(801L)).thenReturn(Optional.of(item));
+        when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderItemRepository.findByOrderIdWithMenuItem(901L)).thenReturn(List.of(item));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        OrderItemResponse response = orderService.completeOrderItem(901L, 801L);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OrderItemStatus.COMPLETED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        verify(orderEventPublisher).publishOrderItemStatusChanged(item, OrderItemStatus.READY, OrderItemStatus.COMPLETED);
+        verify(orderEventPublisher).publishOrderStatusChanged(order, OrderStatus.COOKING, OrderStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("completeOrderItem: throws 409 Conflict if item is not READY")
+    void shouldThrowConflictWhenCompletingNonReadyItem() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COOKING)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(menuItemPho)
+                .status(OrderItemStatus.COOKING)
+                .build();
+
+        when(orderRepository.findByIdForUpdate(901L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByIdForUpdate(801L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> orderService.completeOrderItem(901L, 801L))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Only READY items can be marked as COMPLETED");
+    }
+
+    @Test
+    @DisplayName("completeOrderItem: throws 403 Forbidden if TABLE_ACCOUNT attempts to complete item")
+    void shouldThrowForbiddenWhenTableAccountCompletesItem() {
+        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+
+        assertThatThrownBy(() -> orderService.completeOrderItem(901L, 801L))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("cannot complete order items");
     }
 }

@@ -137,15 +137,83 @@ class KitchenControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("READY"));
 
-        // 6. Service staff serves dish (COMPLETED) -> parent order automatically becomes COMPLETED!
-        mockMvc.perform(patch("/api/kitchen/orders/" + orderId + "/items/" + itemId + "/status")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\":\"COMPLETED\"}"))
+        // 6. Service staff serves dish via /api/orders/{id}/items/{itemId}/complete
+        mockMvc.perform(patch("/api/orders/" + orderId + "/items/" + itemId + "/complete")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
 
         // 7. Verify order detail via kitchen API shows COMPLETED
+        mockMvc.perform(get("/api/kitchen/orders/" + orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + kitchenToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("Kitchen Batch Actions: cook-all starts all items, ready-all finishes all items")
+    void kitchenBatchActionsWorkflow() throws Exception {
+        String tableToken = loginAndGetToken("table_t01", "Password@123");
+        String kitchenToken = loginAndGetToken("kitchen01", "Password@123");
+        String serviceToken = loginAndGetToken("service01", "Password@123");
+
+        // 1. Table creates order with 2 items
+        String orderBody = String.format("""
+                {
+                    "sessionId": %d,
+                    "items": [
+                        {"menuItemId": 1, "quantity": 1},
+                        {"menuItemId": 1, "quantity": 2}
+                    ]
+                }
+                """, activeSession.getId());
+
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tableToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        JsonNode orderData = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        long orderId = orderData.path("id").asLong();
+
+        // 2. Kitchen batch cooks all items
+        mockMvc.perform(post("/api/kitchen/orders/" + orderId + "/cook-all")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + kitchenToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COOKING"))
+                .andExpect(jsonPath("$.data.items[0].status").value("COOKING"))
+                .andExpect(jsonPath("$.data.items[1].status").value("COOKING"));
+
+        // 3. Kitchen batch marks all items ready
+        mockMvc.perform(post("/api/kitchen/orders/" + orderId + "/ready-all")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + kitchenToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].status").value("READY"))
+                .andExpect(jsonPath("$.data.items[1].status").value("READY"));
+
+        // 4. Complete first item
+        long item0Id = orderData.path("items").get(0).path("id").asLong();
+        long item1Id = orderData.path("items").get(1).path("id").asLong();
+
+        mockMvc.perform(patch("/api/orders/" + orderId + "/items/" + item0Id + "/complete")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        // Order is still COOKING since item 1 is not completed
+        mockMvc.perform(get("/api/kitchen/orders/" + orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + kitchenToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COOKING"));
+
+        // 5. Complete second item -> order transitions to COMPLETED
+        mockMvc.perform(patch("/api/orders/" + orderId + "/items/" + item1Id + "/complete")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
         mockMvc.perform(get("/api/kitchen/orders/" + orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + kitchenToken))
                 .andExpect(status().isOk())

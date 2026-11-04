@@ -9,9 +9,19 @@ import java.math.BigDecimal;
 public class MenuItemResponse {
     private Long id;
     private Long categoryId;
+    private Long taxCategoryId;
+    private BigDecimal taxRate;
     private String name;
     private String description;
     private BigDecimal price;
     private Boolean isFeatured;
     private MenuItemStatus status;
+
+    public Long getTax_category_id() {
+        return taxCategoryId;
+    }
+
+    public BigDecimal getTax_rate() {
+        return taxRate;
+    }
 }

@@ -156,10 +156,68 @@ class KitchenServiceImplTest {
     }
 
     @Test
+    @DisplayName("cookAll: advances PENDING order and all PENDING items to COOKING")
+    void shouldCookAllPendingItemsSuccessfully() {
+        authenticate(UserRole.KITCHEN_STAFF);
+        testOrder.setStatus(OrderStatus.PENDING);
+        testItem1.setStatus(OrderItemStatus.PENDING);
+        testItem2.setStatus(OrderItemStatus.PENDING);
+
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderItemRepository.findByOrderIdWithMenuItem(10L)).thenReturn(List.of(testItem1, testItem2));
+        when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(i -> i.getArgument(0));
+
+        KitchenOrderResponse response = kitchenService.cookAll(10L);
+
+        assertThat(response).isNotNull();
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.COOKING);
+        assertThat(testItem1.getStatus()).isEqualTo(OrderItemStatus.COOKING);
+        assertThat(testItem2.getStatus()).isEqualTo(OrderItemStatus.COOKING);
+        verify(orderEventPublisher, times(2)).publishOrderItemStatusChanged(any(), eq(OrderItemStatus.PENDING), eq(OrderItemStatus.COOKING));
+        verify(orderEventPublisher).publishOrderStatusChanged(testOrder, OrderStatus.PENDING, OrderStatus.COOKING);
+    }
+
+    @Test
+    @DisplayName("readyAll: transitions all COOKING items to READY and emits ready alerts")
+    void shouldReadyAllCookingItemsSuccessfully() {
+        authenticate(UserRole.KITCHEN_STAFF);
+        testOrder.setStatus(OrderStatus.COOKING);
+        testItem1.setStatus(OrderItemStatus.COOKING);
+        testItem2.setStatus(OrderItemStatus.COOKING);
+
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
+        when(orderItemRepository.findByOrderIdWithMenuItem(10L)).thenReturn(List.of(testItem1, testItem2));
+        when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(i -> i.getArgument(0));
+
+        KitchenOrderResponse response = kitchenService.readyAll(10L);
+
+        assertThat(response).isNotNull();
+        assertThat(testItem1.getStatus()).isEqualTo(OrderItemStatus.READY);
+        assertThat(testItem2.getStatus()).isEqualTo(OrderItemStatus.READY);
+        verify(orderEventPublisher, times(2)).publishOrderItemStatusChanged(any(), eq(OrderItemStatus.COOKING), eq(OrderItemStatus.READY));
+        verify(orderEventPublisher, times(2)).publishDishReady(any());
+    }
+
+    @Test
+    @DisplayName("getKitchenOrders: returns FIFO ordered list")
+    void shouldReturnFifoOrders() {
+        authenticate(UserRole.KITCHEN_STAFF);
+        when(orderRepository.findKitchenOrdersFifo(OrderStatus.PENDING)).thenReturn(List.of(testOrder));
+        when(orderItemRepository.findByOrderIdWithMenuItem(10L)).thenReturn(List.of(testItem1, testItem2));
+
+        List<KitchenOrderResponse> list = kitchenService.getKitchenOrders(OrderStatus.PENDING);
+
+        assertThat(list).hasSize(1);
+        verify(orderRepository).findKitchenOrdersFifo(OrderStatus.PENDING);
+    }
+
+    @Test
     @DisplayName("updateOrderItemStatus: PENDING -> COOKING advances parent order from PENDING to COOKING")
     void shouldAdvanceParentOrderToCookingWhenItemStartsCooking() {
         authenticate(UserRole.KITCHEN_STAFF);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
         when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderItemRepository.findByOrderId(10L)).thenReturn(List.of(testItem1, testItem2));
@@ -173,12 +231,13 @@ class KitchenServiceImplTest {
     }
 
     @Test
-    @DisplayName("updateOrderItemStatus: COOKING -> READY transitions successfully")
+    @DisplayName("updateOrderItemStatus: COOKING -> READY transitions successfully and emits dish ready")
     void shouldTransitionCookingToReady() {
         authenticate(UserRole.KITCHEN_STAFF);
         testItem1.setStatus(OrderItemStatus.COOKING);
         testOrder.setStatus(OrderStatus.COOKING);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
         when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderItemRepository.findByOrderId(10L)).thenReturn(List.of(testItem1, testItem2));
@@ -187,6 +246,7 @@ class KitchenServiceImplTest {
                 new UpdateOrderItemStatusRequest(OrderItemStatus.READY));
 
         assertThat(response.getStatus()).isEqualTo(OrderItemStatus.READY);
+        verify(orderEventPublisher).publishDishReady(testItem1);
     }
 
     @Test
@@ -197,6 +257,7 @@ class KitchenServiceImplTest {
         testItem2.setStatus(OrderItemStatus.COMPLETED); // Item 2 already completed
         testOrder.setStatus(OrderStatus.COOKING);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
         when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(invocation -> {
             OrderItem i = invocation.getArgument(0);
@@ -219,6 +280,7 @@ class KitchenServiceImplTest {
     void shouldThrowForbiddenWhenServiceStaffStartsCooking() {
         authenticate(UserRole.SERVICE_STAFF);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
 
         assertThatThrownBy(() -> kitchenService.updateOrderItemStatus(10L, 101L,
@@ -232,6 +294,7 @@ class KitchenServiceImplTest {
     void shouldThrowConflictOnInvalidTransition() {
         authenticate(UserRole.KITCHEN_STAFF);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
 
         assertThatThrownBy(() -> kitchenService.updateOrderItemStatus(10L, 101L,
@@ -261,6 +324,7 @@ class KitchenServiceImplTest {
         testItem2.setStatus(OrderItemStatus.CANCELLED);
         testOrder.setStatus(OrderStatus.COOKING);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
         when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(invocation -> {
             OrderItem i = invocation.getArgument(0);
@@ -284,6 +348,7 @@ class KitchenServiceImplTest {
         authenticate(UserRole.KITCHEN_STAFF);
         testItem1.setStatus(OrderItemStatus.READY);
 
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testOrder));
         when(orderItemRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(testItem1));
 
         assertThatThrownBy(() -> kitchenService.updateOrderItemStatus(10L, 101L,

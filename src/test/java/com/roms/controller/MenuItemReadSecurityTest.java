@@ -57,9 +57,10 @@ class MenuItemReadSecurityTest {
         @Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider provider, UserRepository users, RefreshTokenRepository sessions) {
             return new JwtAuthenticationFilter(provider, users, sessions);
         }
+        @Bean MenuItemExcelService menuItemExcelService() { return mock(MenuItemExcelService.class); }
         @Bean MenuItemService menuService(MenuItemRepository menus, MenuItemImageRepository images, MenuAvailabilityService availability) {
             return new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(), mock(MenuContextInvalidator.class),
-                    images, new MenuItemImageMapper(), new CategoryMapper(), availability);
+                    images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class));
         }
     }
     @Autowired WebApplicationContext context;
