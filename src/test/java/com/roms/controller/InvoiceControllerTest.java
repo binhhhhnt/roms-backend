@@ -1,7 +1,6 @@
 package com.roms.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import com.roms.common.PageResponse;
 import com.roms.dto.request.CheckoutPreviewRequest;
 import com.roms.dto.request.CheckoutRequest;
@@ -41,7 +40,7 @@ class InvoiceControllerTest {
 
     private InvoiceService invoiceService;
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
