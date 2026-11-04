@@ -414,6 +414,7 @@ class OrderServiceImplTest {
         // Parent order also marked CANCELLED because it was PENDING and all items are cancelled
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(orderRepository).save(order);
+        verify(orderEventPublisher).publishOrderStatusChanged(order, OrderStatus.PENDING, OrderStatus.CANCELLED);
     }
 
     @Test
