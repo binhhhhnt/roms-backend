@@ -365,14 +365,15 @@ public class OrderServiceImpl implements OrderService {
                 .toList();
 
         if (activeItems.isEmpty()) {
-            if (parentOrder.getStatus() == OrderStatus.PENDING) {
+            OrderStatus oldStatus = parentOrder.getStatus();
+            if (oldStatus != OrderStatus.CANCELLED) {
                 parentOrder.setStatus(OrderStatus.CANCELLED);
-                parentOrder.setTerminationReason(reason);
+                parentOrder.setTerminationReason(reason != null ? reason : "All items in the order were cancelled");
                 parentOrder.setTerminatedBy(canceller);
                 parentOrder.setTerminatedAt(LocalDateTime.now());
                 orderRepository.save(parentOrder);
+                orderEventPublisher.publishOrderStatusChanged(parentOrder, oldStatus, OrderStatus.CANCELLED);
             }
-            // If parentOrder is COOKING, do NOT auto-complete; keep state per architecture rules
         } else {
             boolean allActiveCompleted = activeItems.stream().allMatch(i -> i.getStatus() == OrderItemStatus.COMPLETED);
             if (allActiveCompleted) {
