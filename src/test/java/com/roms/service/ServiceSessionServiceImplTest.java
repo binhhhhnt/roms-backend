@@ -325,7 +325,7 @@ class ServiceSessionServiceImplTest {
 
                         assertThatThrownBy(() -> sessionService.closeSession(100L))
                                         .isInstanceOf(BusinessRuleException.class)
-                                        .hasMessageContaining("Bàn đã phát sinh đơn hàng, không thể đóng mở nhầm");
+                                        .hasMessageContaining("Bàn đã phát sinh đơn hàng, không thể đóng");
                 }
 
                 @Test
