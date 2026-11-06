@@ -413,8 +413,17 @@ public class BillServiceImpl implements BillService {
     @Override
     @Transactional(readOnly = true)
     public Page<BillResponse> getBills(Pageable pageable) {
-        return billRepository.findAllWithDetails(pageable)
-                .map(this::mapToBillResponse);
+        return getBills(null, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BillResponse> getBills(String search, Pageable pageable) {
+        String normalizedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        Page<Bill> page = (normalizedSearch != null)
+                ? billRepository.findAllFiltered(normalizedSearch, pageable)
+                : billRepository.findAllWithDetails(pageable);
+        return page.map(this::mapToBillResponse);
     }
 
     private BillResponse mapToBillResponse(Bill bill) {

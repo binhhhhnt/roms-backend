@@ -14,6 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -46,6 +50,7 @@ class BillControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new BillController(billService, printerService))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();
     }
 
@@ -108,6 +113,22 @@ class BillControllerTest {
                 .andExpect(jsonPath("$.message").value("Yêu cầu in phiếu tạm tính đã được gửi tới máy in"));
 
         verify(printerService).printProforma(10L);
+    }
+
+    @Test
+    void getBills_withSearch_returns200() throws Exception {
+        BillResponse bill = BillResponse.builder()
+                .id(1L)
+                .billCode("BILL-20261106-0001")
+                .tableCode("Bàn 01")
+                .build();
+        when(billService.getBills(eq("BILL-2026"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(bill), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/bills?search=BILL-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].billCode").value("BILL-20261106-0001"));
     }
 }
 

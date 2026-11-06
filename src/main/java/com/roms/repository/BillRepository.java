@@ -24,12 +24,17 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @Query("SELECT b FROM Bill b WHERE b.id = :id")
     Optional<Bill> findByIdWithDetails(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = {"items", "payments", "promotion", "createdBy", "serviceSession"})
+    @EntityGraph(attributePaths = {"promotion", "createdBy", "serviceSession"})
     @Query("SELECT b FROM Bill b ORDER BY b.createdAt DESC")
     Page<Bill> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"promotion", "createdBy", "serviceSession"})
+    @Query("SELECT b FROM Bill b WHERE " +
+           "(:search IS NULL OR LOWER(b.billCode) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(b.tableCode) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "ORDER BY b.createdAt DESC")
+    Page<Bill> findAllFiltered(@Param("search") String search, Pageable pageable);
 
     @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(bill_code, 15) AS INTEGER)), 0) " +
                    "FROM bills WHERE bill_code LIKE :datePrefix", nativeQuery = true)
     int findMaxSequenceForDate(@Param("datePrefix") String datePrefix);
 }
-
