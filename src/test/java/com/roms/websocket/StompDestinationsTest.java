@@ -73,7 +73,7 @@ class StompDestinationsTest {
 
         // Cannot subscribe to kitchen or tables topics
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, "/topic/kitchen/orders", null)).isFalse();
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, "/topic/tables", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, "/topic/tables", null)).isFalse();
     }
 
     @Test
