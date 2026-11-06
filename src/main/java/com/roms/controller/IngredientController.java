@@ -3,6 +3,7 @@ package com.roms.controller;
 import com.roms.common.ApiResponse;
 import com.roms.common.PageResponse;
 import com.roms.dto.request.CreateIngredientRequest;
+import com.roms.dto.request.ImportIngredientsRequest;
 import com.roms.dto.request.UpdateIngredientRequest;
 import com.roms.dto.response.ExcelImportResultResponse;
 import com.roms.dto.response.IngredientResponse;
@@ -20,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/ingredients")
@@ -52,6 +55,15 @@ public class IngredientController {
         var response = ingredientService.createIngredient(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Ingredient created successfully", response));
+    }
+
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('OWNER', 'INVENTORY_STAFF')")
+    public ResponseEntity<ApiResponse<List<IngredientResponse>>> importIngredients(
+            @Valid @RequestBody ImportIngredientsRequest request) {
+        var response = ingredientService.importIngredients(request.getIngredients());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Đã thêm nguyên liệu từ Excel", response));
     }
 
     @PutMapping("/{id}")

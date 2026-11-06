@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
@@ -21,6 +22,9 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     Optional<Ingredient> findByNameIgnoreCase(String name);
 
     boolean existsByNameIgnoreCase(String name);
+
+    @Query("SELECT i.name FROM Ingredient i WHERE LOWER(i.name) IN :names")
+    List<String> findExistingNamesIgnoreCase(@Param("names") Set<String> names);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 

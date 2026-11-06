@@ -58,8 +58,9 @@ public class BillController {
     @GetMapping
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<Page<BillResponse>>> getBills(
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<BillResponse> response = billService.getBills(pageable);
+        Page<BillResponse> response = billService.getBills(search, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách hóa đơn thành công", response));
     }
 

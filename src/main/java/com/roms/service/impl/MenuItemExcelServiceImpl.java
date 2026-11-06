@@ -13,6 +13,7 @@ import com.roms.service.TaxCategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,6 +89,30 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
 
             for (int i = 0; i < HEADERS.length; i++) {
                 sheet.autoSizeColumn(i);
+            }
+
+            // Data Validation: Dropdown list for Category (Column 1)
+            List<Category> categories = categoryRepository.findAll();
+            if (!categories.isEmpty()) {
+                Sheet refSheet = workbook.createSheet("Categories_Ref");
+                int refRow = 0;
+                for (Category cat : categories) {
+                    if (cat.getName() != null && !cat.getName().isBlank()) {
+                        Row r = refSheet.createRow(refRow++);
+                        r.createCell(0).setCellValue(cat.getName());
+                    }
+                }
+                if (refRow > 0) {
+                    workbook.setSheetHidden(workbook.getSheetIndex("Categories_Ref"), true);
+                    DataValidationHelper validationHelper = sheet.getDataValidationHelper();
+                    DataValidationConstraint constraint = validationHelper.createFormulaListConstraint("Categories_Ref!$A$1:$A$" + refRow);
+                    CellRangeAddressList addressList = new CellRangeAddressList(1, 1000, 1, 1);
+                    DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                    validation.setSuppressDropDownArrow(true);
+                    validation.setShowErrorBox(true);
+                    validation.createErrorBox("Danh mục không hợp lệ", "Vui lòng chọn danh mục từ danh sách có sẵn của nhà hàng.");
+                    sheet.addValidationData(validation);
+                }
             }
 
             workbook.write(out);
@@ -238,14 +263,14 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                         isDirectSale = clean.equals("CÓ") || clean.equals("TRUE") || clean.equals("YES") || clean.equals("1");
                     }
 
-                    // Resolve or auto-create Category
+                    // Resolve Category - MUST exist in DB, no auto-create
                     String finalCatName = categoryName;
-                    Category category = categoryRepository.findByName(finalCatName)
-                            .orElseGet(() -> categoryRepository.save(Category.builder()
-                                    .name(finalCatName)
-                                    .displayOrder(0)
-                                    .isActive(true)
-                                    .build()));
+                    Optional<Category> categoryOpt = categoryRepository.findByName(finalCatName);
+                    if (categoryOpt.isEmpty()) {
+                        errors.add("Dòng " + displayRowNumber + ": Danh mục '" + finalCatName + "' không tồn tại trong hệ thống. Vui lòng chọn danh mục hợp lệ.");
+                        continue;
+                    }
+                    Category category = categoryOpt.get();
 
                     // Resolve or auto-create TaxCategory
                     TaxCategory taxCategory = taxCategoryService.findOrCreateByRate(vatRate);

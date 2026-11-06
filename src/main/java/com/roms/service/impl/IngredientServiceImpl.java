@@ -18,6 +18,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -57,6 +62,36 @@ public class IngredientServiceImpl implements IngredientService {
         Ingredient saved = ingredientRepository.save(ingredient);
         log.info("Created ingredient id={}, name={}", saved.getId(), saved.getName());
         return ingredientMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public List<IngredientResponse> importIngredients(List<CreateIngredientRequest> requests) {
+        var names = new HashSet<String>();
+        for (var request : requests) {
+            String name = request.getName().trim();
+            if (!names.add(name.toLowerCase(Locale.ROOT))) {
+                throw new BusinessRuleException("DUPLICATE_INGREDIENT_NAME",
+                        "Tên nguyên liệu bị trùng trong danh sách: " + name);
+            }
+            var minimumStock = request.getMinimumStock();
+            if (minimumStock != null && (minimumStock.signum() < 0
+                    || minimumStock.compareTo(new BigDecimal("999999999.999")) > 0
+                    || Math.max(0, minimumStock.stripTrailingZeros().scale()) > 3)) {
+                throw new BusinessRuleException("INVALID_MINIMUM_STOCK",
+                        "Mức tồn tối thiểu của " + name + " phải từ 0 đến 999999999.999, tối đa 3 chữ số thập phân.");
+            }
+        }
+        var existingNames = ingredientRepository.findExistingNamesIgnoreCase(names);
+        if (!existingNames.isEmpty()) {
+            throw new BusinessRuleException("DUPLICATE_INGREDIENT_NAME",
+                    "Nguyên liệu đã tồn tại (kể cả đã ngưng sử dụng): " + String.join(", ", existingNames)
+                            + ". Vui lòng bỏ chọn các dòng này rồi xác nhận lại.");
+        }
+        var ingredients = requests.stream().map(ingredientMapper::toEntity).toList();
+        var saved = ingredientRepository.saveAllAndFlush(ingredients);
+        log.info("Imported {} ingredients", saved.size());
+        return saved.stream().map(ingredientMapper::toResponse).toList();
     }
 
     @Override

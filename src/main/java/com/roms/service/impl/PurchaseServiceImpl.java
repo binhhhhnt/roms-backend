@@ -103,6 +103,11 @@ public class PurchaseServiceImpl implements PurchaseService {
             Ingredient ingredient = ingredientRepository.findByIdWithPessimisticLock(itemReq.getIngredientId())
                     .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + itemReq.getIngredientId()));
 
+            if (!Boolean.TRUE.equals(ingredient.getIsActive())) {
+                throw new BusinessRuleException("INGREDIENT_INACTIVE",
+                        "Nguyên liệu đã ngưng sử dụng, không thể nhập kho: " + ingredient.getName());
+            }
+
             BigDecimal subtotal = itemReq.getQuantity().multiply(itemReq.getUnitPrice());
             totalAmount = totalAmount.add(subtotal);
 

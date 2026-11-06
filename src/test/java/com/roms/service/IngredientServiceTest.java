@@ -52,6 +52,61 @@ class IngredientServiceTest {
 
     private Ingredient beef;
 
+    @Test
+    void importIngredients_createsAllWithZeroStockAndTrimmedFields() {
+        var requests = List.of(
+                CreateIngredientRequest.builder().name(" Gạo ").unit(" kg ").minimumStock(new BigDecimal("5.125")).build(),
+                CreateIngredientRequest.builder().name("Dầu ăn").unit("lít").build());
+        when(ingredientRepository.saveAllAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var results = ingredientService.importIngredients(requests);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.getFirst().getName()).isEqualTo("Gạo");
+        assertThat(results.getFirst().getUnit()).isEqualTo("kg");
+        assertThat(results.getFirst().getMinimumStock()).isEqualByComparingTo("5.125");
+        assertThat(results).allSatisfy(result -> {
+            assertThat(result.getCurrentStock()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(result.getIsActive()).isTrue();
+        });
+        assertThat(results.get(1).getMinimumStock()).isNull();
+        verify(ingredientRepository).saveAllAndFlush(any());
+    }
+
+    @Test
+    void importIngredients_duplicateWithinFileDoesNotSaveAnyRows() {
+        var requests = List.of(
+                CreateIngredientRequest.builder().name(" Gạo ").unit("kg").build(),
+                CreateIngredientRequest.builder().name("gạo").unit("g").build());
+
+        assertThatThrownBy(() -> ingredientService.importIngredients(requests))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("trùng");
+        verify(ingredientRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void importIngredients_existingNameDoesNotSaveEvenEarlierValidRows() {
+        var requests = List.of(
+                CreateIngredientRequest.builder().name("Gạo").unit("kg").build(),
+                CreateIngredientRequest.builder().name("Thịt bò").unit("kg").build());
+        when(ingredientRepository.findExistingNamesIgnoreCase(any())).thenReturn(List.of("Thịt bò"));
+
+        assertThatThrownBy(() -> ingredientService.importIngredients(requests))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("đã tồn tại");
+        verify(ingredientRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void importIngredients_rejectsMinimumStockOutsideDatabasePrecision() {
+        for (String invalid : List.of("-1", "1000000000", "0.0001")) {
+            var requests = List.of(CreateIngredientRequest.builder()
+                    .name("Gạo").unit("kg").minimumStock(new BigDecimal(invalid)).build());
+            assertThatThrownBy(() -> ingredientService.importIngredients(requests))
+                    .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Mức tồn tối thiểu");
+        }
+        verify(ingredientRepository, never()).saveAllAndFlush(any());
+    }
+
     @BeforeEach
     void setUp() {
         beef = Ingredient.builder()

@@ -118,7 +118,7 @@ Authorization must be enforced by the backend. The current schema has **no** sep
   - Kitchen staff can trigger "Ra món" (item) or "Ra tất cả" (order) to move items from `COOKING` to `READY`.
   - On dish reaching `READY`, the system emits a STOMP notification to service staff. Service staff delivers dish and calls complete endpoint (`COMPLETED`).
 - **Excel Import / Export**:
-  - Menu Items: Download template (`.xlsx`) or export existing catalog. Import parses rows; if an item name already exists, update its fields; if `rate` does not exist in `tax_categories`, create it automatically (`CHECK (rate >= 0)`).
+  - Menu Items: Download template (`.xlsx`) with category dropdown validation or export existing catalog. Import parses rows; if category does not exist, reject row with validation error. If item name already exists, update its fields.
   - Ingredients: Download template or export existing list. Import parses rows; if an ingredient name already exists, update its properties; if initial stock is provided, record an initial balance movement.
 - **Deadlock, Race Condition & N+1 Prevention**:
   - Always lock ingredients in deterministic ascending ID order (`ORDER BY id ASC`).
@@ -126,6 +126,7 @@ Authorization must be enforced by the backend. The current schema has **no** sep
   - Use `JOIN FETCH` / `@EntityGraph` for KDS order feeds, menu catalog, recipe aggregation, and Excel exports to completely eliminate N+1 queries.
 - Cloudinary holds menu images; PostgreSQL stores URLs/references.
 - Redis caches menu/ingredient context for Gemini AI and expiring forgot-password OTPs.
+- Owner-approved catalog deletion: an empty category may be deleted; a category containing dishes returns a conflict. A dish may be deleted with its recipe/images only if it has never been referenced by an OrderItem. Preserve all order and stock history; referenced dishes may instead be discontinued. Category UI status labels are Đang phục vụ / Tạm ngưng phục vụ, backed by `isActive`.
 
 ## 6. Development Acceptance Criteria
 

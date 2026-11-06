@@ -640,7 +640,14 @@ curl -X GET "http://localhost:8080/api/dashboard/export?startDate=2026-10-01&end
 
 ## 9. API Catalog và Menu Tablet — BE-007
 
-Các API đều dùng `Authorization: Bearer <accessToken>` và envelope chung. Mọi tài khoản đã xác thực được đọc; chỉ OWNER được ghi danh mục, món và ảnh. Không có xóa cứng danh mục/món: category ngừng hoạt động bằng `isActive=false`; món ngừng bán qua PATCH status của BE-008.
+Các API đều dùng `Authorization: Bearer <accessToken>` và envelope chung. Mọi tài khoản đã xác thực được đọc; chỉ OWNER được ghi hoặc xóa danh mục, món và ảnh. Category dùng `isActive=true/false` với nhãn giao diện Đang phục vụ/Tạm ngưng phục vụ; món ngừng bán qua PATCH status của BE-008.
+
+Theo yêu cầu quản lý danh mục/món được duyệt ngày 2026-10-23:
+
+- `DELETE /api/categories/{id}` trả 204 body rỗng. Danh mục còn món trả 409 `CATEGORY_IN_USE`; chuyển/xóa các món trước hoặc tạm ngưng phục vụ danh mục.
+- `DELETE /api/menu-items/{id}` trả 204 body rỗng. Món đã có trong bất kỳ OrderItem nào (kể cả đơn cũ/đã hủy) trả 409 `MENU_ITEM_IN_USE`; có thể chọn DISCONTINUED để giữ lịch sử. Món chưa từng đặt được xóa cùng recipe và ảnh qua lifecycle Cloudinary hiện có. Không sửa tồn kho, OrderItem hoặc stock movements.
+- OWNER được xóa; các role khác trả 403, chưa đăng nhập 401; ID không hợp lệ 400, tài nguyên không tồn tại 404. Khóa bản ghi và ràng buộc FK bảo vệ liên kết; invalidate menu context sau commit. Không thêm migration.
+- Cleanup Cloudinary có cùng giới hạn như API xóa ảnh hiện tại: lỗi provider dừng thao tác; xóa asset thành công nhưng DB rollback có thể cần tải lại ảnh. Không có transaction phân tán giữa Cloudinary và PostgreSQL.
 
 ### 9.1 Danh Mục
 

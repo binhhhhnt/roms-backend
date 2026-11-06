@@ -29,6 +29,9 @@ class ExcelEndpointsControllerTest {
     @Autowired
     private WebApplicationContext webApplicationContext;
 
+    @Autowired
+    private com.roms.repository.CategoryRepository categoryRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mockMvc;
 
@@ -37,6 +40,16 @@ class ExcelEndpointsControllerTest {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
                 .apply(SecurityMockMvcConfigurers.springSecurity())
                 .build();
+
+        for (String catName : java.util.List.of("Món chính", "Đồ uống")) {
+            if (categoryRepository.findByName(catName).isEmpty()) {
+                categoryRepository.save(com.roms.entity.Category.builder()
+                        .name(catName)
+                        .displayOrder(1)
+                        .isActive(true)
+                        .build());
+            }
+        }
     }
 
     private String loginAndGetToken(String username, String password) throws Exception {

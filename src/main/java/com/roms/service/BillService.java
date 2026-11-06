@@ -12,5 +12,5 @@ public interface BillService {
     BillResponse getBillById(Long id);
     BillResponse getBillBySessionId(Long sessionId);
     Page<BillResponse> getBills(Pageable pageable);
+    Page<BillResponse> getBills(String search, Pageable pageable);
 }
-

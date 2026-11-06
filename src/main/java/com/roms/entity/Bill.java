@@ -2,6 +2,7 @@ package com.roms.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
@@ -55,10 +56,12 @@ public class Bill {
     private LocalDateTime createdAt;
 
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "bill", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<BillItem> items = new LinkedHashSet<>();
 
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "bill", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Payment> payments = new LinkedHashSet<>();
 }
