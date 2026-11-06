@@ -78,6 +78,14 @@ class EntityMappingTest {
         RestaurantTable table = tableRepository.findByTableCode("T01").orElseThrow();
         User staff = userRepository.findByUsername("service01").orElseThrow();
 
+        // Close any pre-existing active session on this table to ensure clean test state
+        sessionRepository.findByTableIdAndStatus(table.getId(), ServiceSessionStatus.ACTIVE)
+                .ifPresent(existing -> {
+                    existing.setStatus(ServiceSessionStatus.CLOSED);
+                    existing.setClosedAt(LocalDateTime.now());
+                    sessionRepository.saveAndFlush(existing);
+                });
+
         // 1st ACTIVE session
         ServiceSession session1 = ServiceSession.builder()
                 .table(table)

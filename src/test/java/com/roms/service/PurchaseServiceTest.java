@@ -69,6 +69,22 @@ class PurchaseServiceTest {
     private User staff;
     private Ingredient beef;
 
+    @Test
+    void createPurchase_InactiveIngredientDoesNotChangeStock() {
+        beef.setIsActive(false);
+        var request = CreatePurchaseRequest.builder().purchaseDate(LocalDate.now())
+                .items(List.of(PurchaseItemRequest.builder().ingredientId(10L)
+                        .quantity(BigDecimal.ONE).unitPrice(BigDecimal.TEN).build())).build();
+        when(purchaseRepository.save(any(Purchase.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(ingredientRepository.findByIdWithPessimisticLock(10L)).thenReturn(Optional.of(beef));
+
+        assertThatThrownBy(() -> purchaseService.createPurchase(request, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("ngưng sử dụng");
+        assertThat(beef.getCurrentStock()).isEqualByComparingTo("20.000");
+        verify(ingredientRepository, never()).save(any());
+        verifyNoInteractions(purchaseItemRepository, stockMovementService);
+    }
+
     @BeforeEach
     void setUp() {
         staff = User.builder()
