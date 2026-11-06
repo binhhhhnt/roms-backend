@@ -17,7 +17,6 @@ import java.util.Optional;
  */
 @Repository
 public interface RecipeItemRepository extends JpaRepository<RecipeItem, Long> {
-    void deleteByMenuItemId(Long menuItemId);
 
     /**
      * Tìm danh sách công thức nguyên liệu của một món ăn cụ thể.

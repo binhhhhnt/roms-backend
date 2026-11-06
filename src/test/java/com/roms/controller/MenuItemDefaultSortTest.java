@@ -2,6 +2,7 @@ package com.roms.controller;
 
 import com.roms.common.PageResponse;
 import com.roms.service.MenuItemService;
+import com.roms.service.MenuItemExcelService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -16,7 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MenuItemDefaultSortTest {
     @Test void defaultHttpRequestUsesInsertionOrderAndKeepsExplicitNameSort() throws Exception {
         var service = mock(MenuItemService.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new MenuItemController(service))
+        var excelService = mock(MenuItemExcelService.class);
+        var mvc = MockMvcBuilders.standaloneSetup(new MenuItemController(service, excelService))
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver()).build();
         for (String property : List.of("id", "name")) {
             var pageable = PageRequest.of(0, 20, Sort.by(property));
