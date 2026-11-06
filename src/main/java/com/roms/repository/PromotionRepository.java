@@ -1,12 +1,18 @@
 package com.roms.repository;
 
 import com.roms.entity.Promotion;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +20,16 @@ import java.util.Optional;
 public interface PromotionRepository extends JpaRepository<Promotion, Long> {
 
     Optional<Promotion> findByCodeAndIsDeletedFalse(String code);
+
+    Optional<Promotion> findByCodeIgnoreCaseAndIsDeletedFalse(String code);
+
+    boolean existsByCodeIgnoreCaseAndIsDeletedFalse(String code);
+
+    boolean existsByCodeIgnoreCaseAndIsDeletedFalseAndIdNot(String code, Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Promotion p WHERE p.id = :id AND p.isDeleted = false")
+    Optional<Promotion> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT p FROM Promotion p WHERE p.isActive = true AND p.isDeleted = false " +
            "AND (p.startDate IS NULL OR p.startDate <= :today) " +
@@ -23,5 +39,16 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
 
     @Query("SELECT COUNT(b) FROM Bill b WHERE b.promotion.id = :promotionId")
     long countUsedBills(@Param("promotionId") Long promotionId);
-}
 
+    @Query("SELECT b.promotion.id, COUNT(b.id) FROM Bill b WHERE b.promotion.id IN :promotionIds GROUP BY b.promotion.id")
+    List<Object[]> countUsedBillsByPromotionIds(@Param("promotionIds") Collection<Long> promotionIds);
+
+    @EntityGraph(attributePaths = {"createdBy"})
+    @Query("SELECT p FROM Promotion p WHERE p.isDeleted = false " +
+           "AND (:search IS NULL OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "AND (:isActive IS NULL OR p.isActive = :isActive) " +
+           "ORDER BY p.createdAt DESC")
+    Page<Promotion> findAllFiltered(@Param("search") String search,
+                                    @Param("isActive") Boolean isActive,
+                                    Pageable pageable);
+}

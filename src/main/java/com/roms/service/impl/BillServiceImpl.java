@@ -271,6 +271,9 @@ public class BillServiceImpl implements BillService {
             }
 
             if (appliedPromo.getMaxUses() != null) {
+                // Acquire pessimistic write lock to serialize concurrent checkouts using limited promotions
+                appliedPromo = promotionRepository.findByIdForUpdate(appliedPromo.getId())
+                        .orElseThrow(() -> new BusinessRuleException("Mã khuyến mãi không tồn tại", "INVALID_PROMOTION_CODE"));
                 long usedCount = promotionRepository.countUsedBills(appliedPromo.getId());
                 if (usedCount >= appliedPromo.getMaxUses()) {
                     throw new BusinessRuleException("Mã khuyến mãi đã hết lượt sử dụng", "PROMOTION_MAX_USES_REACHED");
