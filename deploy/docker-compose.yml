@@ -1,0 +1,129 @@
+# ============================================================
+# ROMS Backend - Production stack for AWS EC2 t3.small (2 vCPU / 2 GB RAM)
+# Services: PostgreSQL, Redis, Spring Boot (REST + STOMP WebSocket), Nginx (TLS), Certbot
+#
+# RAM budget (~1.9 GB usable + 2 GB swap on host):
+#   postgres 384m | redis 160m | app 900m | nginx 64m | certbot 64m
+# ============================================================
+name: roms
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Ho_Chi_Minh
+      PGTZ: Asia/Ho_Chi_Minh
+    command: >
+      postgres
+      -c shared_buffers=96MB
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Only reachable from the VPS itself (use an SSH tunnel for DBeaver/pgAdmin)
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # Cache only (OTP + Gemini menu context, all keys have TTL) -> no persistence
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 96mb
+      --maxmemory-policy volatile-lru
+      --save ""
+      --appendonly no
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 160m
+    networks: [backend]
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/binhhhhnt/roms-backend}:${APP_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Values below override anything with the same name in .env
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      SERVER_PORT: "8080"
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      SERVER_SHUTDOWN: graceful
+      MANAGEMENT_HEALTH_REDIS_ENABLED: "true"
+      # Small restaurant workload: cap Tomcat threads to save RAM (default 200)
+      SERVER_TOMCAT_THREADS_MAX: "50"
+      TZ: Asia/Ho_Chi_Minh
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8080"
+    mem_limit: 900m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+    networks: [backend]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    # Reload every 6h to pick up renewed certificates
+    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g "daemon off;"'
+    depends_on:
+      - app
+    mem_limit: 64m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [backend]
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+    mem_limit: 64m
+    networks: [backend]
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+

@@ -1,2 +1,6 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+*.sh text eol=lf
+deploy/nginx/** text eol=lf
+deploy/docker-compose.yml text eol=lf
+Dockerfile text eol=lf

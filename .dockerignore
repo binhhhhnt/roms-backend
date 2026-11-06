@@ -1,0 +1,17 @@
+target/
+.git/
+.github/
+.agents/
+.idea/
+.vscode/
+.mvn/
+mvnw
+mvnw.cmd
+docs/
+deploy/
+*.md
+.env
+.env.*
+Dockerfile
+.dockerignore
+
