@@ -24,6 +24,27 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     @Query("SELECT oi FROM OrderItem oi WHERE oi.id = :id")
     Optional<OrderItem> findByIdForUpdate(@Param("id") Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT oi FROM OrderItem oi JOIN FETCH oi.menuItem mi JOIN FETCH oi.order o WHERE oi.id IN :ids ORDER BY oi.id ASC")
+    List<OrderItem> findAllByIdInForUpdate(@Param("ids") List<Long> ids);
+
+    @Query("SELECT oi FROM OrderItem oi " +
+           "JOIN FETCH oi.menuItem mi " +
+           "JOIN FETCH oi.order o " +
+           "WHERE o.serviceSession.id = :sessionId " +
+           "ORDER BY oi.id ASC")
+    List<OrderItem> findAllBySessionIdWithMenuItem(@Param("sessionId") Long sessionId);
+
+    @Query("SELECT oi FROM OrderItem oi " +
+           "JOIN FETCH oi.menuItem mi " +
+           "JOIN FETCH oi.order o " +
+           "LEFT JOIN FETCH oi.returnedBy rb " +
+           "WHERE o.serviceSession.id = :sessionId " +
+           "AND mi.isDirectSale = true " +
+           "AND oi.status != com.roms.enums.OrderItemStatus.CANCELLED " +
+           "ORDER BY oi.id ASC")
+    List<OrderItem> findDirectSaleItemsBySessionId(@Param("sessionId") Long sessionId);
+
     @Query("SELECT COALESCE(SUM(oi.quantity * oi.unitPrice), 0) FROM OrderItem oi " +
            "WHERE oi.status = com.roms.enums.OrderItemStatus.COMPLETED AND oi.order.status = com.roms.enums.OrderStatus.COMPLETED " +
            "AND oi.order.createdAt BETWEEN :startDate AND :endDate")

@@ -694,4 +694,147 @@ class OrderServiceImplTest {
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("cannot complete order items");
     }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: success returns stock and records ORDER_RETURN movement")
+    void returnSessionDirectSaleItems_Success() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        MenuItem beer = MenuItem.builder()
+                .id(101L)
+                .name("Bia Heineken lon")
+                .price(new BigDecimal("30000.00"))
+                .isDirectSale(true)
+                .build();
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COMPLETED)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(beer)
+                .quantity(10)
+                .returnedQuantity(0)
+                .unitPrice(new BigDecimal("30000.00"))
+                .status(OrderItemStatus.COMPLETED)
+                .build();
+
+        Ingredient beerCan = Ingredient.builder()
+                .id(501L)
+                .name("Lon bia Heineken")
+                .currentStock(new BigDecimal("20.000"))
+                .unit("lon")
+                .build();
+
+        RecipeItem recipe = RecipeItem.builder()
+                .id(601L)
+                .menuItem(beer)
+                .ingredient(beerCan)
+                .quantityRequired(new BigDecimal("1.000"))
+                .build();
+
+        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
+        when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyCollection())).thenReturn(List.of(recipe));
+        when(ingredientRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(beerCan));
+        when(userRepository.findById(any())).thenReturn(Optional.of(User.builder().id(2L).username("waiter1").build()));
+        when(orderItemRepository.findDirectSaleItemsBySessionId(100L)).thenReturn(List.of(item));
+        when(serviceSessionRepository.existsById(100L)).thenReturn(true);
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 3)))
+                .build();
+
+        var result = orderService.returnSessionDirectSaleItems(100L, returnReq);
+
+        assertThat(result).hasSize(1);
+        assertThat(item.getReturnedQuantity()).isEqualTo(3);
+        assertThat(beerCan.getCurrentStock()).isEqualByComparingTo(new BigDecimal("23.000")); // 20 + 3
+
+        verify(stockMovementRepository).save(argThat(m ->
+                m.getMovementType() == StockMovementType.ORDER_RETURN &&
+                m.getQuantityChange().compareTo(new BigDecimal("3.000")) == 0 &&
+                m.getNote().contains("Trả đồ Đơn #901 (Bia Heineken lon x3)")
+        ));
+    }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: throws error when return quantity exceeds ordered quantity")
+    void returnSessionDirectSaleItems_ExceedsQuantity_ThrowsException() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        MenuItem beer = MenuItem.builder()
+                .id(101L)
+                .name("Bia Heineken lon")
+                .isDirectSale(true)
+                .build();
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COMPLETED)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(beer)
+                .quantity(10)
+                .returnedQuantity(8)
+                .status(OrderItemStatus.COMPLETED)
+                .build();
+
+        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 3))) // 8 + 3 = 11 > 10
+                .build();
+
+        assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("cannot exceed ordered quantity");
+    }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: throws error when item is not direct-sale")
+    void returnSessionDirectSaleItems_NotDirectSale_ThrowsException() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        MenuItem cookedDish = MenuItem.builder()
+                .id(102L)
+                .name("Phở Bò Tái Nạm")
+                .isDirectSale(false)
+                .build();
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COMPLETED)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(802L)
+                .order(order)
+                .menuItem(cookedDish)
+                .quantity(2)
+                .returnedQuantity(0)
+                .status(OrderItemStatus.COMPLETED)
+                .build();
+
+        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(orderItemRepository.findAllByIdInForUpdate(List.of(802L))).thenReturn(List.of(item));
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(802L, 1)))
+                .build();
+
+        assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("is not a direct-sale item and cannot be returned");
+    }
 }

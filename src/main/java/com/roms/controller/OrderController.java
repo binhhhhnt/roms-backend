@@ -62,7 +62,7 @@ public class OrderController {
     public ResponseEntity<ApiResponse<OrderItemResponse>> cancelOrderItem(
             @PathVariable("id") Long id,
             @PathVariable("itemId") Long itemId,
-            @RequestBody(required = false) CancelOrderItemRequest request) {
+            @Valid @RequestBody(required = false) CancelOrderItemRequest request) {
         OrderItemResponse response = orderService.cancelOrderItem(id, itemId, request);
         return ResponseEntity.ok(ApiResponse.success("Order item cancelled successfully", response));
     }

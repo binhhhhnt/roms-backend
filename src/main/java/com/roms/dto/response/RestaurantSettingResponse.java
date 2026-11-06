@@ -24,6 +24,68 @@ public class RestaurantSettingResponse {
         return menuPriceIncludesVat;
     }
 
+    @JsonProperty("restaurant_name")
+    private String restaurantName;
+
+    @JsonProperty("restaurantName")
+    public String getRestaurantNameCamel() {
+        return restaurantName;
+    }
+
+    @JsonProperty("address")
+    private String address;
+
+    @JsonProperty("phone")
+    private String phone;
+
+    @JsonProperty("receipt_footer")
+    private String receiptFooter;
+
+    @JsonProperty("receiptFooter")
+    public String getReceiptFooterCamel() {
+        return receiptFooter;
+    }
+
+    @JsonProperty("print_ready_ticket")
+    private Boolean printReadyTicket;
+
+    @JsonProperty("printReadyTicket")
+    public Boolean getPrintReadyTicketCamel() {
+        return printReadyTicket;
+    }
+
+    @JsonProperty("bill_printer_name")
+    private String billPrinterName;
+
+    @JsonProperty("billPrinterName")
+    public String getBillPrinterNameCamel() {
+        return billPrinterName;
+    }
+
+    @JsonProperty("bill_paper_size")
+    private String billPaperSize;
+
+    @JsonProperty("billPaperSize")
+    public String getBillPaperSizeCamel() {
+        return billPaperSize;
+    }
+
+    @JsonProperty("ready_ticket_printer_name")
+    private String readyTicketPrinterName;
+
+    @JsonProperty("readyTicketPrinterName")
+    public String getReadyTicketPrinterNameCamel() {
+        return readyTicketPrinterName;
+    }
+
+    @JsonProperty("ready_ticket_paper_size")
+    private String readyTicketPaperSize;
+
+    @JsonProperty("readyTicketPaperSize")
+    public String getReadyTicketPaperSizeCamel() {
+        return readyTicketPaperSize;
+    }
+
     @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 

@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
@@ -82,41 +84,51 @@ public class InventoryCheckServiceImpl implements InventoryCheckService {
 
         List<InventoryCheckItem> savedItems = new ArrayList<>();
 
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
-            for (InventoryCheckItemRequest itemReq : request.getItems()) {
-                // Lock ingredient for concurrent balance protection
-                Ingredient ingredient = ingredientRepository.findByIdWithPessimisticLock(itemReq.getIngredientId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + itemReq.getIngredientId()));
+        List<InventoryCheckItemRequest> sortedItemRequests = request.getItems() != null
+                ? request.getItems().stream()
+                        .sorted(Comparator.comparing(InventoryCheckItemRequest::getIngredientId))
+                        .toList()
+                : Collections.emptyList();
 
-                BigDecimal systemQuantity = ingredient.getCurrentStock() != null
-                        ? ingredient.getCurrentStock()
-                        : BigDecimal.ZERO;
-                BigDecimal actualQuantity = itemReq.getActualQuantity();
-                BigDecimal difference = actualQuantity.subtract(systemQuantity);
+        for (InventoryCheckItemRequest itemReq : sortedItemRequests) {
+            // Lock ingredient for concurrent balance protection (ordered by ingredientId ASC to prevent deadlocks)
+            Ingredient ingredient = ingredientRepository.findByIdWithPessimisticLock(itemReq.getIngredientId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + itemReq.getIngredientId()));
 
-                InventoryCheckItem checkItem = InventoryCheckItem.builder()
-                        .inventoryCheck(savedCheck)
-                        .ingredient(ingredient)
-                        .systemQuantity(systemQuantity)
-                        .actualQuantity(actualQuantity)
-                        .difference(difference)
-                        .reason(itemReq.getReason())
-                        .build();
-                InventoryCheckItem savedItem = inventoryCheckItemRepository.save(checkItem);
-                savedItems.add(savedItem);
+            BigDecimal systemQuantity = ingredient.getCurrentStock() != null
+                    ? ingredient.getCurrentStock()
+                    : BigDecimal.ZERO;
+            BigDecimal actualQuantity = itemReq.getActualQuantity();
+            BigDecimal difference = actualQuantity.subtract(systemQuantity);
 
-                // If discrepancy detected, update current stock and append traceable movement
-                if (difference.compareTo(BigDecimal.ZERO) != 0) {
-                    ingredient.setCurrentStock(actualQuantity);
-                    ingredientRepository.save(ingredient);
+            InventoryCheckItem checkItem = InventoryCheckItem.builder()
+                    .inventoryCheck(savedCheck)
+                    .ingredient(ingredient)
+                    .systemQuantity(systemQuantity)
+                    .actualQuantity(actualQuantity)
+                    .difference(difference)
+                    .reason(itemReq.getReason())
+                    .build();
+            InventoryCheckItem savedItem = inventoryCheckItemRepository.save(checkItem);
+            savedItems.add(savedItem);
 
-                    stockMovementService.recordInventoryAdjustment(
-                            ingredient,
-                            difference,
-                            savedItem,
-                            itemReq.getReason() != null ? itemReq.getReason() : "Inventory check adjustment"
-                    );
-                }
+            // If discrepancy detected, update current stock and append traceable movement
+            if (difference.compareTo(BigDecimal.ZERO) != 0) {
+                ingredient.setCurrentStock(actualQuantity);
+                ingredientRepository.save(ingredient);
+
+                String reasonText = (itemReq.getReason() != null && !itemReq.getReason().trim().isEmpty())
+                        ? " (" + itemReq.getReason().trim() + ")"
+                        : "";
+                String checkMovementNote = "Kiểm kê #" + savedCheck.getId() + reasonText + " • Bởi: "
+                        + (user != null ? user.getUsername() + " (#" + user.getId() + ")" : "Hệ thống");
+
+                stockMovementService.recordInventoryAdjustment(
+                        ingredient,
+                        difference,
+                        savedItem,
+                        checkMovementNote
+                );
             }
         }
 

@@ -74,6 +74,7 @@ class MenuItemExcelServiceImplTest {
                 .taxCategory(testTaxCategory)
                 .status(MenuItemStatus.AVAILABLE)
                 .isFeatured(true)
+                .isDirectSale(true)
                 .build();
     }
 
@@ -91,6 +92,7 @@ class MenuItemExcelServiceImplTest {
             assertThat(headerRow.getCell(1).getStringCellValue()).contains("Tên danh mục");
             assertThat(headerRow.getCell(2).getStringCellValue()).contains("Giá niêm yết");
             assertThat(headerRow.getCell(3).getStringCellValue()).contains("Thuế suất");
+            assertThat(headerRow.getCell(7).getStringCellValue()).contains("Hàng bán trực tiếp");
         }
     }
 
@@ -110,6 +112,7 @@ class MenuItemExcelServiceImplTest {
             assertThat(dataRow.getCell(1).getStringCellValue()).isEqualTo("Món chính");
             assertThat(dataRow.getCell(2).getNumericCellValue()).isEqualTo(65000.0);
             assertThat(dataRow.getCell(3).getNumericCellValue()).isEqualTo(8.0);
+            assertThat(dataRow.getCell(7).getStringCellValue()).isEqualTo("CÓ");
         }
     }
 
@@ -128,6 +131,7 @@ class MenuItemExcelServiceImplTest {
             header.createCell(4).setCellValue("Mô tả");
             header.createCell(5).setCellValue("Trạng thái");
             header.createCell(6).setCellValue("Món nổi bật");
+            header.createCell(7).setCellValue("Hàng bán trực tiếp");
 
             // Row 1: Existing item to update
             Row row1 = sheet.createRow(1);
@@ -138,16 +142,18 @@ class MenuItemExcelServiceImplTest {
             row1.createCell(4).setCellValue("Phở bò tái nạm cập nhật");
             row1.createCell(5).setCellValue("AVAILABLE");
             row1.createCell(6).setCellValue("CÓ");
+            row1.createCell(7).setCellValue("KHÔNG");
 
             // Row 2: New item to insert
             Row row2 = sheet.createRow(2);
-            row2.createCell(0).setCellValue("Bún chả Hà Nội");
-            row2.createCell(1).setCellValue("Món chính");
-            row2.createCell(2).setCellValue(60000);
-            row2.createCell(3).setCellValue(10.0);
-            row2.createCell(4).setCellValue("Bún chả nướng than hoa");
+            row2.createCell(0).setCellValue("Bia lon Heineken");
+            row2.createCell(1).setCellValue("Đồ uống");
+            row2.createCell(2).setCellValue(30000);
+            row2.createCell(3).setCellValue(8.0);
+            row2.createCell(4).setCellValue("Bia lon ướp lạnh");
             row2.createCell(5).setCellValue("AVAILABLE");
             row2.createCell(6).setCellValue("KHÔNG");
+            row2.createCell(7).setCellValue("CÓ");
 
             wb.write(out);
         }
@@ -158,10 +164,10 @@ class MenuItemExcelServiceImplTest {
                 out.toByteArray()
         );
 
-        when(categoryRepository.findByName("Món chính")).thenReturn(Optional.of(testCategory));
+        when(categoryRepository.findByName(anyString())).thenReturn(Optional.of(testCategory));
         when(taxCategoryService.findOrCreateByRate(any())).thenReturn(testTaxCategory);
         when(menuItemRepository.findByName("Phở Bò")).thenReturn(Optional.of(testMenuItem));
-        when(menuItemRepository.findByName("Bún chả Hà Nội")).thenReturn(Optional.empty());
+        when(menuItemRepository.findByName("Bia lon Heineken")).thenReturn(Optional.empty());
 
         ExcelImportResultResponse result = menuItemExcelService.importMenuItems(file);
 

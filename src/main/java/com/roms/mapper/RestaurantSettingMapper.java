@@ -14,8 +14,16 @@ public class RestaurantSettingMapper {
         return RestaurantSettingResponse.builder()
                 .id(setting.getId())
                 .menuPriceIncludesVat(setting.getMenuPriceIncludesVat())
+                .restaurantName(setting.getRestaurantName())
+                .address(setting.getAddress())
+                .phone(setting.getPhone())
+                .receiptFooter(setting.getReceiptFooter())
+                .printReadyTicket(setting.getPrintReadyTicket())
+                .billPrinterName(setting.getBillPrinterName())
+                .billPaperSize(setting.getBillPaperSize())
+                .readyTicketPrinterName(setting.getReadyTicketPrinterName())
+                .readyTicketPaperSize(setting.getReadyTicketPaperSize())
                 .updatedAt(setting.getUpdatedAt())
                 .build();
     }
 }
-

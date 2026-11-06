@@ -39,6 +39,7 @@ public class KitchenServiceImpl implements KitchenService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderEventPublisher orderEventPublisher;
+    private final com.roms.service.PrinterService printerService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -162,12 +163,21 @@ public class KitchenServiceImpl implements KitchenService {
         refreshEntity(order);
 
         List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(id);
+        List<Long> readiedItemIds = new java.util.ArrayList<>();
         for (OrderItem item : items) {
             if (item.getStatus() == OrderItemStatus.COOKING) {
                 item.setStatus(OrderItemStatus.READY);
                 OrderItem savedItem = orderItemRepository.save(item);
                 orderEventPublisher.publishOrderItemStatusChanged(savedItem, OrderItemStatus.COOKING, OrderItemStatus.READY);
                 orderEventPublisher.publishDishReady(savedItem);
+                readiedItemIds.add(savedItem.getId());
+            }
+        }
+        if (!readiedItemIds.isEmpty()) {
+            try {
+                printerService.printKitchenReadyTicket(order.getId(), readiedItemIds);
+            } catch (Exception e) {
+                log.warn("Failed to trigger kitchen ready ticket print for order {}: {}", order.getId(), e.getMessage());
             }
         }
 
@@ -211,9 +221,14 @@ public class KitchenServiceImpl implements KitchenService {
         // Publish STOMP event for item status transition
         orderEventPublisher.publishOrderItemStatusChanged(savedItem, currentStatus, targetStatus);
 
-        // If dish reached READY, emit alert to waitstaff topic
+        // If dish reached READY, emit alert to waitstaff topic and trigger ticket print
         if (targetStatus == OrderItemStatus.READY) {
             orderEventPublisher.publishDishReady(savedItem);
+            try {
+                printerService.printKitchenReadyTicket(parentOrder.getId(), java.util.List.of(savedItem.getId()));
+            } catch (Exception e) {
+                log.warn("Failed to trigger kitchen ready ticket print for item {}: {}", savedItem.getId(), e.getMessage());
+            }
         }
 
         // If item transitioned to COOKING while parent order is PENDING, advance parent to COOKING

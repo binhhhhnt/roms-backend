@@ -50,6 +50,9 @@ class KitchenServiceImplTest {
     @Mock
     private OrderEventPublisher orderEventPublisher;
 
+    @Mock
+    private com.roms.service.PrinterService printerService;
+
     @InjectMocks
     private KitchenServiceImpl kitchenService;
 

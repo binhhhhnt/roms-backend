@@ -23,6 +23,7 @@ public final class StompDestinations {
     // Standard Destinations
     public static final String TOPIC_KITCHEN_ORDERS = "/topic/kitchen/orders";
     public static final String TOPIC_TABLES = "/topic/tables";
+    public static final String TOPIC_BILLS = "/topic/bills";
     public static final String TOPIC_SERVICE_READY_DISHES = "/topic/service/ready-dishes";
     public static final String TOPIC_SESSION_ORDERS_PATTERN = "^/topic/session/(\\d+)/orders$";
     public static final String USER_NOTIFICATIONS_QUEUE = "/user/queue/notifications";
@@ -61,6 +62,13 @@ public final class StompDestinations {
      */
     public static String tables() {
         return TOPIC_TABLES;
+    }
+
+    /**
+     * Build destination for bills topic.
+     */
+    public static String bills() {
+        return TOPIC_BILLS;
     }
 
     /**
@@ -112,6 +120,11 @@ public final class StompDestinations {
 
         // Tables topic: service staff
         if (dest.equals(TOPIC_TABLES) || dest.startsWith("/topic/tables/")) {
+            return role == UserRole.SERVICE_STAFF;
+        }
+
+        // Bills topic: service staff or owner (owner handled above)
+        if (dest.equals(TOPIC_BILLS) || dest.startsWith("/topic/bills/")) {
             return role == UserRole.SERVICE_STAFF;
         }
 

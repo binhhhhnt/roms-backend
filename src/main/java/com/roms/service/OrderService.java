@@ -74,4 +74,23 @@ public interface OrderService {
      * @return updated order item response
      */
     OrderItemResponse completeOrderItem(Long orderId, Long itemId);
+
+    /**
+     * Get all direct-sale items (e.g. beer, wine, bottled drinks) of a service session
+     * for table inventory check.
+     *
+     * @param sessionId service session ID
+     * @return list of direct sale items
+     */
+    List<com.roms.dto.response.DirectSaleItemDto> getSessionDirectSaleItems(Long sessionId);
+
+    /**
+     * Return unused intact direct-sale items to warehouse inventory.
+     * Restores stock, records ORDER_RETURN stock movements, updates returned_quantity and returned_by.
+     *
+     * @param sessionId service session ID
+     * @param request return items request
+     * @return updated list of direct sale items
+     */
+    List<com.roms.dto.response.DirectSaleItemDto> returnSessionDirectSaleItems(Long sessionId, com.roms.dto.request.ReturnOrderItemsRequest request);
 }

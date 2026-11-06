@@ -41,4 +41,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("endDate") java.time.LocalDateTime endDate);
 
     boolean existsByServiceSessionIdAndStatusIn(Long serviceSessionId, Collection<OrderStatus> statuses);
+
+    boolean existsByServiceSessionIdAndStatusNot(Long serviceSessionId, OrderStatus status);
 }

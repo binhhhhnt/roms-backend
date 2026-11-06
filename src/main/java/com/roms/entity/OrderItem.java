@@ -35,6 +35,7 @@ public class OrderItem {
         this.updatedAt = updatedAt;
         this.taxRate = BigDecimal.valueOf(8.00);
         this.isVatInclusive = true;
+        this.returnedQuantity = 0;
     }
 
     @Id
@@ -51,6 +52,14 @@ public class OrderItem {
 
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
+
+    @Column(name = "returned_quantity", nullable = false)
+    @Builder.Default
+    private Integer returnedQuantity = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "returned_by")
+    private User returnedBy;
 
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;

@@ -20,8 +20,12 @@ public class OrderItemResponse {
     private Long menuItemId;
     private String menuItemName;
     private Integer quantity;
+    private Integer returnedQuantity;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
+
+    @JsonProperty("is_direct_sale")
+    private Boolean isDirectSale;
 
     @JsonProperty("tax_rate")
     private BigDecimal taxRate;
@@ -34,5 +38,7 @@ public class OrderItemResponse {
     private String terminationReason;
     private Long terminatedById;
     private LocalDateTime terminatedAt;
+    private Long returnedById;
+    private String returnedByName;
     private LocalDateTime createdAt;
 }

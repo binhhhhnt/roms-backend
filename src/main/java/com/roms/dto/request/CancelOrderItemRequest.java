@@ -1,5 +1,6 @@
 package com.roms.dto.request;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,4 +15,11 @@ public class CancelOrderItemRequest {
 
     @Size(max = 255, message = "reason must not exceed 255 characters")
     private String reason;
+
+    @Min(value = 1, message = "quantity must be at least 1")
+    private Integer quantity;
+
+    public CancelOrderItemRequest(String reason) {
+        this.reason = reason;
+    }
 }

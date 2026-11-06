@@ -18,6 +18,8 @@ import com.roms.repository.PurchaseRepository;
 import com.roms.repository.UserRepository;
 import com.roms.service.PurchaseService;
 import com.roms.service.StockMovementService;
+import com.roms.security.SecurityUtils;
+import com.roms.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
@@ -86,8 +90,16 @@ public class PurchaseServiceImpl implements PurchaseService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<PurchaseItem> savedItems = new ArrayList<>();
+        String creatorInfo = (user != null) ? user.getUsername() + " (#" + user.getId() + ")" : "Hệ thống";
+        String purchaseMovementNote = "Phiếu nhập #" + savedPurchase.getId() + " • Bởi: " + creatorInfo;
 
-        for (PurchaseItemRequest itemReq : request.getItems()) {
+        List<PurchaseItemRequest> sortedItemRequests = request.getItems() != null
+                ? request.getItems().stream()
+                        .sorted(Comparator.comparing(PurchaseItemRequest::getIngredientId))
+                        .toList()
+                : Collections.emptyList();
+
+        for (PurchaseItemRequest itemReq : sortedItemRequests) {
             Ingredient ingredient = ingredientRepository.findByIdWithPessimisticLock(itemReq.getIngredientId())
                     .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + itemReq.getIngredientId()));
 
@@ -116,7 +128,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                     ingredient,
                     itemReq.getQuantity(),
                     savedItem,
-                    "Nhập hàng theo phiếu #" + savedPurchase.getId()
+                    purchaseMovementNote
             );
         }
 
@@ -175,9 +187,12 @@ public class PurchaseServiceImpl implements PurchaseService {
 
         // Record compensating movement if quantity changed
         if (deltaQuantity.compareTo(BigDecimal.ZERO) != 0) {
-            String note = (request.getReason() != null && !request.getReason().trim().isEmpty())
-                    ? "Điều chỉnh phiếu #" + purchaseId + ": " + request.getReason().trim()
-                    : "Điều chỉnh chi tiết phiếu nhập #" + purchaseId;
+            UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal().orElse(null);
+            String actorInfo = (currentUser != null) ? currentUser.getUsername() + " (#" + currentUser.getId() + ")" : "Hệ thống";
+            String reasonText = (request.getReason() != null && !request.getReason().trim().isEmpty())
+                    ? " (" + request.getReason().trim() + ")"
+                    : "";
+            String note = "Điều chỉnh Phiếu nhập #" + purchaseId + reasonText + " • Bởi: " + actorInfo;
 
             stockMovementService.recordPurchase(ingredient, deltaQuantity, item, note);
         }

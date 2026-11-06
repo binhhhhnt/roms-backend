@@ -15,6 +15,7 @@ public class MenuItemResponse {
     private String description;
     private BigDecimal price;
     private Boolean isFeatured;
+    private Boolean isDirectSale;
     private MenuItemStatus status;
 
     public Long getTax_category_id() {
@@ -23,5 +24,9 @@ public class MenuItemResponse {
 
     public BigDecimal getTax_rate() {
         return taxRate;
+    }
+
+    public Boolean getIs_direct_sale() {
+        return isDirectSale;
     }
 }

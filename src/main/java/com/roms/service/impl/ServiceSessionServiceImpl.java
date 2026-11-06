@@ -220,15 +220,12 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
             }
         }
 
-        // 5. Kiểm tra đơn hàng dở dang: Không được đóng phiên khi còn món đang chờ xử lý hoặc đang nấu
-        boolean hasUnfinishedOrders = orderRepository.existsByServiceSessionIdAndStatusIn(
-                sessionId,
-                List.of(OrderStatus.PENDING, OrderStatus.COOKING)
-        );
-        if (hasUnfinishedOrders) {
+        // 5. Kiểm tra đóng phiên mở nhầm: Chỉ cho phép đóng khi phiên KHÔNG có order nào hoặc toàn bộ order đã bị CANCELLED
+        boolean hasNonCancelledOrders = orderRepository.existsByServiceSessionIdAndStatusNot(sessionId, OrderStatus.CANCELLED);
+        if (hasNonCancelledOrders) {
             throw new BusinessRuleException(
-                    "Cannot close session while orders are still pending or cooking",
-                    "SESSION_HAS_UNFINISHED_ORDERS");
+                    "Bàn đã phát sinh đơn hàng, không thể đóng mở nhầm. Vui lòng thực hiện tính tiền hoặc hủy toàn bộ đơn trước.",
+                    "SESSION_CANNOT_CLOSE_WITHOUT_BILL");
         }
 
         // 6. Ghi nhận người đóng và thời điểm đóng phiên

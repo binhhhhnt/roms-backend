@@ -24,6 +24,9 @@ public class MenuItemWriteRequest {
     @NotNull
     private Boolean isFeatured;
 
+    @JsonAlias({"isDirectSale", "is_direct_sale"})
+    private Boolean isDirectSale;
+
     public Long getTaxCategoryId() {
         return taxCategoryId;
     }

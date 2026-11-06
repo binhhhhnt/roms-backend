@@ -134,7 +134,7 @@ class PurchaseServiceTest {
                 eq(beef),
                 eq(new BigDecimal("15.000")),
                 any(PurchaseItem.class),
-                eq("Nhập hàng theo phiếu #100")
+                contains("Phiếu nhập #100")
         );
     }
 

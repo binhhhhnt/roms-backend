@@ -2,10 +2,13 @@ package com.roms.controller;
 
 import com.roms.common.ApiResponse;
 import com.roms.common.PageResponse;
+import com.roms.dto.request.ReturnOrderItemsRequest;
 import com.roms.dto.request.TransferTableRequest;
+import com.roms.dto.response.DirectSaleItemDto;
 import com.roms.dto.response.ServiceSessionResponse;
 import com.roms.dto.response.TableTransferHistoryResponse;
 import com.roms.enums.ServiceSessionStatus;
+import com.roms.service.OrderService;
 import com.roms.service.ServiceSessionService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * Controller quản lý Phiên phục vụ (Service Session) và Chuyển bàn (Table Transfer).
@@ -30,9 +35,11 @@ import org.springframework.web.bind.annotation.*;
 public class ServiceSessionController {
 
     private final ServiceSessionService sessionService;
+    private final OrderService orderService;
 
-    public ServiceSessionController(ServiceSessionService sessionService) {
+    public ServiceSessionController(ServiceSessionService sessionService, OrderService orderService) {
         this.sessionService = sessionService;
+        this.orderService = orderService;
     }
 
     /**
@@ -151,5 +158,27 @@ public class ServiceSessionController {
         PageResponse<TableTransferHistoryResponse> history = sessionService.getTransferHistory(sessionId, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Transfer history retrieved successfully", history));
+    }
+
+    /**
+     * Lấy danh sách các món bán trực tiếp (bia, rượu, nước ngọt đóng chai...) của phiên phục vụ để kiểm đồ.
+     */
+    @GetMapping("/{sessionId}/direct-sale-items")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    public ResponseEntity<ApiResponse<List<DirectSaleItemDto>>> getDirectSaleItems(@PathVariable Long sessionId) {
+        List<DirectSaleItemDto> items = orderService.getSessionDirectSaleItems(sessionId);
+        return ResponseEntity.ok(ApiResponse.success("Direct sale items retrieved successfully", items));
+    }
+
+    /**
+     * Kiểm đồ trả hàng: hoàn kho các sản phẩm bán trực tiếp nguyên vẹn khách không dùng hết.
+     */
+    @PostMapping("/{sessionId}/return-items")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    public ResponseEntity<ApiResponse<List<DirectSaleItemDto>>> returnItems(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody ReturnOrderItemsRequest request) {
+        List<DirectSaleItemDto> items = orderService.returnSessionDirectSaleItems(sessionId, request);
+        return ResponseEntity.ok(ApiResponse.success("Direct sale items returned successfully", items));
     }
 }

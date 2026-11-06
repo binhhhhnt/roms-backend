@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.roms.dto.request.UpdateSettingRequest;
 import com.roms.dto.response.RestaurantSettingResponse;
 import com.roms.exception.GlobalExceptionHandler;
+import com.roms.service.PrinterService;
 import com.roms.service.RestaurantSettingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -29,12 +31,15 @@ class RestaurantSettingControllerTest {
     @Mock
     private RestaurantSettingService settingService;
 
+    @Mock
+    private PrinterService printerService;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new RestaurantSettingController(settingService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new RestaurantSettingController(settingService, printerService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -83,5 +88,15 @@ class RestaurantSettingControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
-}
 
+    @Test
+    void getAvailablePrinters_returnsList() throws Exception {
+        when(printerService.getInstalledPrinters()).thenReturn(List.of("POS-80", "Microsoft Print to PDF"));
+
+        mockMvc.perform(get("/api/settings/printers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0]").value("POS-80"))
+                .andExpect(jsonPath("$.data[1]").value("Microsoft Print to PDF"));
+    }
+}

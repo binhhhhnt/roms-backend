@@ -130,7 +130,7 @@ class InventoryCheckServiceTest {
                 eq(flour),
                 eq(new BigDecimal("-2.000")),
                 any(InventoryCheckItem.class),
-                eq("Hao hụt tự nhiên")
+                contains("Kiểm kê #100")
         );
     }
 

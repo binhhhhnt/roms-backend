@@ -42,7 +42,8 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             "Thuế suất VAT (%)",
             "Mô tả",
             "Trạng thái",
-            "Món nổi bật"
+            "Món nổi bật",
+            "Hàng bán trực tiếp"
     };
 
     @Override
@@ -63,7 +64,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 cell.setCellStyle(headerStyle);
             }
 
-            // Row 1: Example 1
+            // Row 1: Example 1 (Món chế biến qua bếp)
             Row ex1 = sheet.createRow(1);
             ex1.createCell(0).setCellValue("Phở bò đặc biệt");
             ex1.createCell(1).setCellValue("Món chính");
@@ -72,16 +73,18 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             ex1.createCell(4).setCellValue("Phở bò tái nạm bắp hoa");
             ex1.createCell(5).setCellValue("AVAILABLE");
             ex1.createCell(6).setCellValue("CÓ");
+            ex1.createCell(7).setCellValue("KHÔNG");
 
-            // Row 2: Example 2
+            // Row 2: Example 2 (Hàng bán trực tiếp: bia, rượu, nước ngọt)
             Row ex2 = sheet.createRow(2);
-            ex2.createCell(0).setCellValue("Trà đào cam sả");
+            ex2.createCell(0).setCellValue("Bia Heineken lon");
             ex2.createCell(1).setCellValue("Đồ uống");
-            ex2.createCell(2).setCellValue(45000);
-            ex2.createCell(3).setCellValue(10.00);
-            ex2.createCell(4).setCellValue("Trà đào thơm mát hương sả");
+            ex2.createCell(2).setCellValue(30000);
+            ex2.createCell(3).setCellValue(8.00);
+            ex2.createCell(4).setCellValue("Bia lon 330ml ướp lạnh");
             ex2.createCell(5).setCellValue("AVAILABLE");
             ex2.createCell(6).setCellValue("KHÔNG");
+            ex2.createCell(7).setCellValue("CÓ");
 
             for (int i = 0; i < HEADERS.length; i++) {
                 sheet.autoSizeColumn(i);
@@ -123,6 +126,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 row.createCell(4).setCellValue(item.getDescription() != null ? item.getDescription() : "");
                 row.createCell(5).setCellValue(item.getStatus() != null ? item.getStatus().name() : MenuItemStatus.AVAILABLE.name());
                 row.createCell(6).setCellValue(Boolean.TRUE.equals(item.getIsFeatured()) ? "CÓ" : "KHÔNG");
+                row.createCell(7).setCellValue(Boolean.TRUE.equals(item.getIsDirectSale()) ? "CÓ" : "KHÔNG");
             }
 
             for (int i = 0; i < HEADERS.length; i++) {
@@ -226,6 +230,14 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                         isFeatured = clean.equals("CÓ") || clean.equals("TRUE") || clean.equals("YES") || clean.equals("1");
                     }
 
+                    // 8. Hàng bán trực tiếp
+                    String directSaleStr = getCellStringValue(row.getCell(7));
+                    boolean isDirectSale = false;
+                    if (directSaleStr != null) {
+                        String clean = directSaleStr.trim().toUpperCase();
+                        isDirectSale = clean.equals("CÓ") || clean.equals("TRUE") || clean.equals("YES") || clean.equals("1");
+                    }
+
                     // Resolve or auto-create Category
                     String finalCatName = categoryName;
                     Category category = categoryRepository.findByName(finalCatName)
@@ -248,6 +260,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                         existing.setDescription(description != null ? description.trim() : null);
                         existing.setStatus(status);
                         existing.setIsFeatured(isFeatured);
+                        existing.setIsDirectSale(isDirectSale);
                         menuItemRepository.save(existing);
                         updatedCount++;
                     } else {
@@ -259,6 +272,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                                 .description(description != null ? description.trim() : null)
                                 .status(status)
                                 .isFeatured(isFeatured)
+                                .isDirectSale(isDirectSale)
                                 .build();
                         menuItemRepository.save(newItem);
                         insertedCount++;

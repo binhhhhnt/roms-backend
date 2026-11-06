@@ -18,6 +18,7 @@ public class MenuItemReadResponse {
     private String description;
     private BigDecimal price;
     private Boolean isFeatured;
+    private Boolean isDirectSale;
     private MenuItemStatus status;
     private List<MenuItemImageResponse> images;
     private Availability availability;
@@ -28,6 +29,10 @@ public class MenuItemReadResponse {
 
     public BigDecimal getTax_rate() {
         return taxRate;
+    }
+
+    public Boolean getIs_direct_sale() {
+        return isDirectSale;
     }
 
     @Getter

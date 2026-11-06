@@ -4,6 +4,8 @@ import com.roms.dto.request.CancelOrderItemRequest;
 import com.roms.dto.request.CancelOrderRequest;
 import com.roms.dto.request.CreateOrderItemRequest;
 import com.roms.dto.request.CreateOrderRequest;
+import com.roms.dto.request.ReturnOrderItemsRequest;
+import com.roms.dto.response.DirectSaleItemDto;
 import com.roms.dto.response.OrderItemResponse;
 import com.roms.dto.response.OrderResponse;
 import com.roms.entity.*;
@@ -221,13 +223,15 @@ public class OrderServiceImpl implements OrderService {
                 ing.setCurrentStock(newBalance);
                 ingredientRepository.save(ing);
 
+                String movementNote = "Đơn #" + savedOrder.getId() + " (" + menuItem.getName() + ") • Bởi: "
+                        + currentUser.getUsername() + " (#" + currentUser.getId() + ")";
                 StockMovement movement = StockMovement.builder()
                         .ingredient(ing)
                         .movementType(StockMovementType.ORDER_CONSUMPTION)
                         .quantityChange(consumption.negate()) // Negative for consumption
                         .balanceAfter(newBalance)
                         .orderItem(savedItem)
-                        .note("Order #" + savedOrder.getId() + " Item #" + savedItem.getId() + " consumption")
+                        .note(movementNote)
                         .build();
                 stockMovementRepository.save(movement);
             }
@@ -373,8 +377,51 @@ public class OrderServiceImpl implements OrderService {
                     "Only PENDING order items can be cancelled. Current status: " + item.getStatus());
         }
 
+        int currentQty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1;
+        int cancelQty = (request != null && request.getQuantity() != null)
+                ? request.getQuantity()
+                : currentQty;
+
+        if (cancelQty < 1 || cancelQty > currentQty) {
+            throw new BusinessRuleException("INVALID_CANCEL_QUANTITY",
+                    "Cancel quantity must be between 1 and " + currentQty);
+        }
+
         User canceller = userRepository.findById(currentUser.getId()).orElse(null);
         String reason = request != null ? request.getReason() : null;
+
+        if (cancelQty < currentQty) {
+            String cancellerInfo = (canceller != null) ? canceller.getUsername() + " (#" + canceller.getId() + ")"
+                    : currentUser.getUsername() + " (#" + currentUser.getId() + ")";
+            String itemName = (item.getMenuItem() != null) ? item.getMenuItem().getName() : ("Item #" + item.getId());
+            Long parentOrderId = (item.getOrder() != null) ? item.getOrder().getId() : null;
+            String movementNote = "Hoàn kho - Hủy Đơn #" + parentOrderId + " (" + itemName + " x" + cancelQty + ") • Bởi: " + cancellerInfo;
+
+            restoreStockForItem(item, cancelQty, currentQty, movementNote);
+
+            item.setQuantity(currentQty - cancelQty);
+            orderItemRepository.save(item);
+
+            OrderItem cancelledSplitItem = OrderItem.builder()
+                    .order(item.getOrder())
+                    .menuItem(item.getMenuItem())
+                    .quantity(cancelQty)
+                    .unitPrice(item.getUnitPrice())
+                    .taxRate(item.getTaxRate())
+                    .isVatInclusive(item.getIsVatInclusive())
+                    .note(item.getNote())
+                    .status(OrderItemStatus.CANCELLED)
+                    .terminationReason(reason)
+                    .terminatedBy(canceller)
+                    .terminatedAt(LocalDateTime.now())
+                    .build();
+            OrderItem savedCancelledItem = orderItemRepository.save(cancelledSplitItem);
+
+            orderEventPublisher.publishOrderItemStatusChanged(
+                    savedCancelledItem, OrderItemStatus.PENDING, OrderItemStatus.CANCELLED);
+
+            return mapToOrderItemResponse(savedCancelledItem);
+        }
 
         cancelAndRestoreItem(item, reason, canceller);
 
@@ -452,54 +499,80 @@ public class OrderServiceImpl implements OrderService {
      * Restore stock and cancel item based on recorded ORDER_CONSUMPTION movements.
      */
     private void cancelAndRestoreItem(OrderItem item, String reason, User canceller) {
-        List<StockMovement> originalMovements = stockMovementRepository.findByOrderItemId(item.getId());
+        int currentQty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1;
+        String cancellerInfo = (canceller != null) ? canceller.getUsername() + " (#" + canceller.getId() + ")" : "Hệ thống";
+        String itemName = (item.getMenuItem() != null) ? item.getMenuItem().getName() : ("Item #" + item.getId());
+        Long parentOrderId = (item.getOrder() != null) ? item.getOrder().getId() : null;
+        String movementNote = "Hoàn kho - Hủy Đơn #" + parentOrderId + " (" + itemName + ") • Bởi: " + cancellerInfo;
 
-        boolean alreadyRestored = originalMovements.stream()
-                .anyMatch(m -> m.getQuantityChange().compareTo(BigDecimal.ZERO) > 0);
-
-        if (!alreadyRestored) {
-            List<StockMovement> consumptionMovements = originalMovements.stream()
-                    .filter(m -> m.getMovementType() == StockMovementType.ORDER_CONSUMPTION
-                            && m.getQuantityChange().compareTo(BigDecimal.ZERO) < 0)
-                    .toList();
-
-            List<Long> ingIds = consumptionMovements.stream()
-                    .map(m -> m.getIngredient().getId())
-                    .sorted()
-                    .toList();
-
-            Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
-            for (Long ingId : ingIds) {
-                Ingredient ing = ingredientRepository.findByIdForUpdate(ingId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + ingId));
-                refreshEntity(ing);
-                lockedIngredients.put(ingId, ing);
-            }
-
-            for (StockMovement m : consumptionMovements) {
-                BigDecimal consumed = m.getQuantityChange().abs();
-                Ingredient ing = lockedIngredients.get(m.getIngredient().getId());
-                BigDecimal newBalance = ing.getCurrentStock().add(consumed);
-                ing.setCurrentStock(newBalance);
-                ingredientRepository.save(ing);
-
-                StockMovement compensating = StockMovement.builder()
-                        .ingredient(ing)
-                        .movementType(StockMovementType.ORDER_CONSUMPTION)
-                        .quantityChange(consumed) // Positive for restoration
-                        .balanceAfter(newBalance)
-                        .orderItem(item)
-                        .note("Item #" + item.getId() + " cancellation stock restoration")
-                        .build();
-                stockMovementRepository.save(compensating);
-            }
-        }
+        restoreStockForItem(item, currentQty, currentQty, movementNote);
 
         item.setStatus(OrderItemStatus.CANCELLED);
         item.setTerminationReason(reason);
         item.setTerminatedBy(canceller);
         item.setTerminatedAt(LocalDateTime.now());
         orderItemRepository.save(item);
+    }
+
+    /**
+     * Restore stock proportionally (or fully) based on remaining net ORDER_CONSUMPTION movements.
+     */
+    private void restoreStockForItem(OrderItem item, int cancelQty, int currentQty, String movementNote) {
+        List<StockMovement> originalMovements = stockMovementRepository.findByOrderItemId(item.getId());
+
+        Map<Long, BigDecimal> netConsumedByIngId = new LinkedHashMap<>();
+        for (StockMovement m : originalMovements) {
+            if (m.getMovementType() == StockMovementType.ORDER_CONSUMPTION && m.getIngredient() != null) {
+                Long ingId = m.getIngredient().getId();
+                BigDecimal consumedDelta = m.getQuantityChange().negate();
+                netConsumedByIngId.merge(ingId, consumedDelta, BigDecimal::add);
+            }
+        }
+
+        List<Long> ingIdsToRestore = netConsumedByIngId.entrySet().stream()
+                .filter(e -> e.getValue().compareTo(BigDecimal.ZERO) > 0)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+
+        if (ingIdsToRestore.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
+        for (Long ingId : ingIdsToRestore) {
+            Ingredient ing = ingredientRepository.findByIdForUpdate(ingId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + ingId));
+            refreshEntity(ing);
+            lockedIngredients.put(ingId, ing);
+        }
+
+        for (Long ingId : ingIdsToRestore) {
+            BigDecimal netConsumed = netConsumedByIngId.get(ingId);
+            BigDecimal toRestore = (cancelQty == currentQty)
+                    ? netConsumed
+                    : netConsumed.multiply(BigDecimal.valueOf(cancelQty))
+                            .divide(BigDecimal.valueOf(currentQty), 3, java.math.RoundingMode.HALF_UP);
+
+            if (toRestore.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            Ingredient ing = lockedIngredients.get(ingId);
+            BigDecimal newBalance = ing.getCurrentStock().add(toRestore);
+            ing.setCurrentStock(newBalance);
+            ingredientRepository.save(ing);
+
+            StockMovement compensating = StockMovement.builder()
+                    .ingredient(ing)
+                    .movementType(StockMovementType.ORDER_CONSUMPTION)
+                    .quantityChange(toRestore) // Positive for restoration
+                    .balanceAfter(newBalance)
+                    .orderItem(item)
+                    .note(movementNote)
+                    .build();
+            stockMovementRepository.save(compensating);
+        }
     }
 
     private OrderResponse mapToOrderResponse(Order order, List<OrderItem> items) {
@@ -537,8 +610,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderItemResponse mapToOrderItemResponse(OrderItem item) {
-        BigDecimal subtotal = (item.getUnitPrice() != null && item.getQuantity() != null)
-                ? item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()))
+        int returned = item.getReturnedQuantity() != null ? item.getReturnedQuantity() : 0;
+        int effectiveQty = Math.max(0, (item.getQuantity() != null ? item.getQuantity() : 0) - returned);
+        BigDecimal subtotal = (item.getUnitPrice() != null)
+                ? item.getUnitPrice().multiply(BigDecimal.valueOf(effectiveQty))
                 : BigDecimal.ZERO;
 
         return OrderItemResponse.builder()
@@ -546,6 +621,8 @@ public class OrderServiceImpl implements OrderService {
                 .menuItemId(item.getMenuItem() != null ? item.getMenuItem().getId() : null)
                 .menuItemName(item.getMenuItem() != null ? item.getMenuItem().getName() : null)
                 .quantity(item.getQuantity())
+                .returnedQuantity(returned)
+                .isDirectSale(item.getMenuItem() != null ? item.getMenuItem().getIsDirectSale() : false)
                 .unitPrice(item.getUnitPrice())
                 .subtotal(subtotal)
                 .taxRate(item.getTaxRate())
@@ -555,7 +632,201 @@ public class OrderServiceImpl implements OrderService {
                 .terminationReason(item.getTerminationReason())
                 .terminatedById(item.getTerminatedBy() != null ? item.getTerminatedBy().getId() : null)
                 .terminatedAt(item.getTerminatedAt())
+                .returnedById(item.getReturnedBy() != null ? item.getReturnedBy().getId() : null)
+                .returnedByName(item.getReturnedBy() != null ? item.getReturnedBy().getFullName() : null)
                 .createdAt(item.getCreatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DirectSaleItemDto> getSessionDirectSaleItems(Long sessionId) {
+        if (!serviceSessionRepository.existsById(sessionId)) {
+            throw new ResourceNotFoundException("Service session not found with id: " + sessionId);
+        }
+        List<OrderItem> items = orderItemRepository.findDirectSaleItemsBySessionId(sessionId);
+        return items.stream().map(this::mapToDirectSaleItemDto).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<DirectSaleItemDto> returnSessionDirectSaleItems(Long sessionId, ReturnOrderItemsRequest request) {
+        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal()
+                .orElseThrow(() -> new ForbiddenException("Authentication required"));
+
+        UserRole role = currentUser.getRole();
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+            throw new ForbiddenException("Only service staff or owner can process item returns");
+        }
+
+        ServiceSession session = serviceSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Service session not found with id: " + sessionId));
+
+        if (session.getStatus() != ServiceSessionStatus.ACTIVE) {
+            throw new BusinessRuleException("SESSION_NOT_ACTIVE", "Cannot return items for a closed service session");
+        }
+
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BusinessRuleException("EMPTY_ITEMS", "No items provided for return");
+        }
+
+        // 1. Lock all target order items in ascending ID order
+        List<Long> itemIds = request.getItems().stream()
+                .map(ReturnOrderItemsRequest.ItemReturnDto::getOrderItemId)
+                .distinct()
+                .sorted()
+                .toList();
+
+        List<OrderItem> lockedItems = orderItemRepository.findAllByIdInForUpdate(itemIds);
+        Map<Long, OrderItem> itemMap = lockedItems.stream()
+                .collect(Collectors.toMap(OrderItem::getId, item -> item));
+
+        if (itemMap.size() != itemIds.size()) {
+            throw new ResourceNotFoundException("One or more order items not found");
+        }
+
+        // Map request return qty by orderItemId
+        Map<Long, Integer> returnQtyByItemId = request.getItems().stream()
+                .collect(Collectors.toMap(
+                        ReturnOrderItemsRequest.ItemReturnDto::getOrderItemId,
+                        ReturnOrderItemsRequest.ItemReturnDto::getReturnQuantity,
+                        Integer::sum
+                ));
+
+        // 2. Validate items
+        Set<Long> menuItemIds = new HashSet<>();
+        for (Long itemId : itemIds) {
+            OrderItem item = itemMap.get(itemId);
+            refreshEntity(item);
+
+            if (item.getOrder() == null || item.getOrder().getServiceSession() == null
+                    || !item.getOrder().getServiceSession().getId().equals(sessionId)) {
+                throw new BusinessRuleException("INVALID_ORDER_ITEM",
+                        "Order item #" + itemId + " does not belong to session #" + sessionId);
+            }
+
+            if (item.getStatus() == OrderItemStatus.CANCELLED) {
+                throw new BusinessRuleException("ITEM_CANCELLED",
+                        "Order item #" + itemId + " has been cancelled and cannot be returned");
+            }
+
+            if (item.getMenuItem() == null || !Boolean.TRUE.equals(item.getMenuItem().getIsDirectSale())) {
+                throw new BusinessRuleException("NOT_DIRECT_SALE",
+                        "Order item #" + itemId + " (" + (item.getMenuItem() != null ? item.getMenuItem().getName() : "")
+                                + ") is not a direct-sale item and cannot be returned");
+            }
+
+            int currentReturned = item.getReturnedQuantity() != null ? item.getReturnedQuantity() : 0;
+            int addReturn = returnQtyByItemId.get(itemId);
+            if (addReturn <= 0) {
+                throw new BusinessRuleException("INVALID_RETURN_QUANTITY", "Return quantity must be greater than 0");
+            }
+
+            if (currentReturned + addReturn > item.getQuantity()) {
+                throw new BusinessRuleException("RETURN_EXCEEDS_QUANTITY",
+                        "Total returned quantity (" + (currentReturned + addReturn)
+                                + ") cannot exceed ordered quantity (" + item.getQuantity() + ") for item #" + itemId);
+            }
+
+            menuItemIds.add(item.getMenuItem().getId());
+        }
+
+        // 3. Batch load recipes for affected menu items (Zero N+1 query)
+        List<RecipeItem> allRecipes = recipeItemRepository.findByMenuItemIdInWithIngredient(menuItemIds);
+        Map<Long, List<RecipeItem>> recipesByMenuItem = allRecipes.stream()
+                .collect(Collectors.groupingBy(r -> r.getMenuItem().getId()));
+
+        // 4. Calculate total ingredients to restore across all items
+        Map<Long, BigDecimal> qtyToRestoreByIngId = new LinkedHashMap<>();
+        for (Long itemId : itemIds) {
+            OrderItem item = itemMap.get(itemId);
+            int returnQty = returnQtyByItemId.get(itemId);
+            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(), Collections.emptyList());
+            for (RecipeItem recipe : recipes) {
+                if (recipe.getIngredient() != null) {
+                    BigDecimal toRestore = recipe.getQuantityRequired().multiply(BigDecimal.valueOf(returnQty));
+                    qtyToRestoreByIngId.merge(recipe.getIngredient().getId(), toRestore, BigDecimal::add);
+                }
+            }
+        }
+
+        // 5. DEADLOCK PREVENTION: Sort ingredient IDs ascending prior to pessimistic write lock
+        List<Long> sortedIngIds = qtyToRestoreByIngId.keySet().stream().sorted().toList();
+        Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
+        for (Long ingId : sortedIngIds) {
+            Ingredient ing = ingredientRepository.findByIdForUpdate(ingId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + ingId));
+            refreshEntity(ing);
+            lockedIngredients.put(ingId, ing);
+        }
+
+        // 6. Restore ingredient stock and record StockMovement (ORDER_RETURN)
+        User currentUserEntity = userRepository.findById(currentUser.getId()).orElse(null);
+        String userSnapshot = currentUser.getUsername() + " (#" + currentUser.getId() + ")";
+
+        for (Long itemId : itemIds) {
+            OrderItem item = itemMap.get(itemId);
+            int returnQty = returnQtyByItemId.get(itemId);
+            int currentReturned = item.getReturnedQuantity() != null ? item.getReturnedQuantity() : 0;
+
+            item.setReturnedQuantity(currentReturned + returnQty);
+            item.setReturnedBy(currentUserEntity);
+            orderItemRepository.save(item);
+
+            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(), Collections.emptyList());
+            for (RecipeItem recipe : recipes) {
+                if (recipe.getIngredient() == null) continue;
+                Long ingId = recipe.getIngredient().getId();
+                Ingredient ing = lockedIngredients.get(ingId);
+
+                BigDecimal returnDelta = recipe.getQuantityRequired().multiply(BigDecimal.valueOf(returnQty));
+                BigDecimal newBalance = ing.getCurrentStock().add(returnDelta);
+                ing.setCurrentStock(newBalance);
+                ingredientRepository.save(ing);
+
+                String note = "Trả đồ Đơn #" + item.getOrder().getId() + " (" + item.getMenuItem().getName()
+                        + " x" + returnQty + ") • Bởi: " + userSnapshot;
+
+                StockMovement movement = StockMovement.builder()
+                        .ingredient(ing)
+                        .movementType(StockMovementType.ORDER_RETURN)
+                        .quantityChange(returnDelta)
+                        .balanceAfter(newBalance)
+                        .orderItem(item)
+                        .note(note)
+                        .build();
+                stockMovementRepository.save(movement);
+            }
+
+            // Publish item change event to session and kitchen topics
+            orderEventPublisher.publishOrderItemStatusChanged(item, item.getStatus(), item.getStatus());
+        }
+
+        log.info("Returned direct sale items for session id={} by user={}", sessionId, userSnapshot);
+
+        return getSessionDirectSaleItems(sessionId);
+    }
+
+    private DirectSaleItemDto mapToDirectSaleItemDto(OrderItem item) {
+        int ordered = item.getQuantity() != null ? item.getQuantity() : 0;
+        int returned = item.getReturnedQuantity() != null ? item.getReturnedQuantity() : 0;
+        int used = Math.max(0, ordered - returned);
+        BigDecimal subtotal = (item.getUnitPrice() != null)
+                ? item.getUnitPrice().multiply(BigDecimal.valueOf(used))
+                : BigDecimal.ZERO;
+
+        return DirectSaleItemDto.builder()
+                .orderItemId(item.getId())
+                .orderId(item.getOrder() != null ? item.getOrder().getId() : null)
+                .menuItemId(item.getMenuItem() != null ? item.getMenuItem().getId() : null)
+                .menuItemName(item.getMenuItem() != null ? item.getMenuItem().getName() : null)
+                .orderedQuantity(ordered)
+                .returnedQuantity(returned)
+                .usedQuantity(used)
+                .unitPrice(item.getUnitPrice())
+                .subtotal(subtotal)
+                .status(item.getStatus())
+                .orderCreatedAt(item.getOrder() != null ? item.getOrder().getCreatedAt() : null)
                 .build();
     }
 }

@@ -20,7 +20,7 @@ public class MenuItemMapper {
 
         return MenuItemReadResponse.builder().id(item.getId()).category(category)
                 .name(item.getName()).description(item.getDescription()).price(item.getPrice())
-                .isFeatured(item.getIsFeatured()).status(item.getStatus()).images(images)
+                .isFeatured(item.getIsFeatured()).isDirectSale(item.getIsDirectSale()).status(item.getStatus()).images(images)
                 .taxCategoryId(taxCatId)
                 .taxRate(taxRate)
                 .availability(MenuItemReadResponse.Availability.builder()
@@ -35,6 +35,9 @@ public class MenuItemMapper {
         item.setDescription(request.getDescription());
         item.setPrice(request.getPrice());
         item.setIsFeatured(request.getIsFeatured());
+        if (request.getIsDirectSale() != null) {
+            item.setIsDirectSale(request.getIsDirectSale());
+        }
     }
 
     public MenuItemResponse toResponse(MenuItem item) {
@@ -43,7 +46,7 @@ public class MenuItemMapper {
 
         return MenuItemResponse.builder().id(item.getId()).categoryId(item.getCategory().getId())
                 .name(item.getName()).description(item.getDescription()).price(item.getPrice())
-                .isFeatured(item.getIsFeatured()).status(item.getStatus())
+                .isFeatured(item.getIsFeatured()).isDirectSale(item.getIsDirectSale()).status(item.getStatus())
                 .taxCategoryId(taxCatId).taxRate(taxRate).build();
     }
 }

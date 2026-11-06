@@ -27,6 +27,7 @@ public class MenuItem {
         this.price = price;
         this.status = status != null ? status : MenuItemStatus.AVAILABLE;
         this.isFeatured = isFeatured != null ? isFeatured : false;
+        this.isDirectSale = false;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -60,6 +61,10 @@ public class MenuItem {
     @Column(name = "is_featured", nullable = false)
     @Builder.Default
     private Boolean isFeatured = false;
+
+    @Column(name = "is_direct_sale", nullable = false)
+    @Builder.Default
+    private Boolean isDirectSale = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

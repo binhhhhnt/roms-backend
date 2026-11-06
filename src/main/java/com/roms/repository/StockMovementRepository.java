@@ -4,6 +4,7 @@ import com.roms.entity.StockMovement;
 import com.roms.enums.StockMovementType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -22,9 +23,16 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
 
     List<StockMovement> findByInventoryCheckItemId(Long inventoryCheckItemId);
 
+    @EntityGraph(attributePaths = {"ingredient"})
     Page<StockMovement> findByIngredientIdAndMovementType(Long ingredientId, StockMovementType movementType, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"ingredient"})
     Page<StockMovement> findByIngredientId(Long ingredientId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"ingredient"})
     Page<StockMovement> findByMovementType(StockMovementType movementType, Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"ingredient"})
+    Page<StockMovement> findAll(Pageable pageable);
 }
