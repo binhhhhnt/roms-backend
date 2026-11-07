@@ -109,6 +109,8 @@ public class PromotionServiceImpl implements PromotionService {
     @Transactional
     public PromotionResponse createPromotion(PromotionWriteRequest request) {
         String normalizedCode = request.getCode().trim().toUpperCase();
+        LocalDate effectiveStartDate = request.getStartDate() != null ? request.getStartDate() : LocalDate.now();
+        request.setStartDate(effectiveStartDate);
         validatePromotionRequest(request, normalizedCode, null);
 
         UserPrincipal principal = SecurityUtils.getCurrentUserPrincipal()
@@ -122,7 +124,7 @@ public class PromotionServiceImpl implements PromotionService {
                 .discountType(request.getDiscountType())
                 .discountValue(request.getDiscountValue())
                 .maxUses(request.getMaxUses())
-                .startDate(request.getStartDate())
+                .startDate(effectiveStartDate)
                 .endDate(request.getEndDate())
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .isDeleted(false)
@@ -130,11 +132,14 @@ public class PromotionServiceImpl implements PromotionService {
                 .build();
 
         try {
-            Promotion saved = promotionRepository.save(promo);
+            Promotion saved = promotionRepository.saveAndFlush(promo);
             log.info("Promotion created: id={}, code={}", saved.getId(), saved.getCode());
             return mapToResponse(saved, 0L);
         } catch (DataIntegrityViolationException ex) {
-            log.warn("Concurrent creation conflict for promotion code: {}", normalizedCode, ex);
+            log.warn("Data integrity violation while creating promotion code: {}", normalizedCode, ex);
+            if (ex.getMessage() != null && ex.getMessage().contains("chk_promotions_period")) {
+                throw new BusinessRuleException("Thời gian hiệu lực của khuyến mãi không hợp lệ", "INVALID_DATE_RANGE");
+            }
             throw new BusinessRuleException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại", "PROMOTION_CODE_ALREADY_EXISTS");
         }
     }
@@ -147,6 +152,11 @@ public class PromotionServiceImpl implements PromotionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion not found with id: " + id));
 
         String normalizedCode = request.getCode().trim().toUpperCase();
+        LocalDate fallbackStart = promo.getStartDate() != null
+                ? promo.getStartDate()
+                : (promo.getCreatedAt() != null ? promo.getCreatedAt().toLocalDate() : LocalDate.now());
+        LocalDate effectiveStartDate = request.getStartDate() != null ? request.getStartDate() : fallbackStart;
+        request.setStartDate(effectiveStartDate);
         validatePromotionRequest(request, normalizedCode, id);
 
         promo.setName(request.getName().trim());
@@ -154,19 +164,22 @@ public class PromotionServiceImpl implements PromotionService {
         promo.setDiscountType(request.getDiscountType());
         promo.setDiscountValue(request.getDiscountValue());
         promo.setMaxUses(request.getMaxUses());
-        promo.setStartDate(request.getStartDate());
+        promo.setStartDate(effectiveStartDate);
         promo.setEndDate(request.getEndDate());
         if (request.getIsActive() != null) {
             promo.setIsActive(request.getIsActive());
         }
 
         try {
-            Promotion saved = promotionRepository.save(promo);
+            Promotion saved = promotionRepository.saveAndFlush(promo);
             long usedCount = promotionRepository.countUsedBills(saved.getId());
             log.info("Promotion updated: id={}, code={}", saved.getId(), saved.getCode());
             return mapToResponse(saved, usedCount);
         } catch (DataIntegrityViolationException ex) {
-            log.warn("Concurrent update conflict for promotion code: {}", normalizedCode, ex);
+            log.warn("Data integrity violation while updating promotion code: {}", normalizedCode, ex);
+            if (ex.getMessage() != null && ex.getMessage().contains("chk_promotions_period")) {
+                throw new BusinessRuleException("Thời gian hiệu lực của khuyến mãi không hợp lệ", "INVALID_DATE_RANGE");
+            }
             throw new BusinessRuleException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại", "PROMOTION_CODE_ALREADY_EXISTS");
         }
     }
@@ -234,6 +247,10 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     private PromotionResponse mapToResponse(Promotion p, long usedCount) {
+        LocalDate effectiveStartDate = p.getStartDate() != null
+                ? p.getStartDate()
+                : (p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : LocalDate.now());
+
         return PromotionResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
@@ -242,7 +259,7 @@ public class PromotionServiceImpl implements PromotionService {
                 .discountValue(p.getDiscountValue())
                 .maxUses(p.getMaxUses())
                 .usedCount(usedCount)
-                .startDate(p.getStartDate())
+                .startDate(effectiveStartDate)
                 .endDate(p.getEndDate())
                 .isActive(p.getIsActive())
                 .statusBadge(computeStatusBadge(p, usedCount))
