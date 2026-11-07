@@ -105,7 +105,7 @@ class PromotionServiceImplTest {
                 .createdBy(currentUser)
                 .build();
 
-        when(promotionRepository.save(any(Promotion.class))).thenReturn(savedPromo);
+        when(promotionRepository.saveAndFlush(any(Promotion.class))).thenReturn(savedPromo);
 
         PromotionResponse response = promotionService.createPromotion(request);
 
@@ -113,7 +113,7 @@ class PromotionServiceImplTest {
         assertThat(response.getCode()).isEqualTo("WELCOME10");
         assertThat(response.getDiscountType()).isEqualTo(DiscountType.PERCENT);
         assertThat(response.getStatusBadge()).isEqualTo("ACTIVE");
-        verify(promotionRepository).save(any(Promotion.class));
+        verify(promotionRepository).saveAndFlush(any(Promotion.class));
     }
 
     @Test

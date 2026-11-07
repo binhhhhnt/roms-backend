@@ -30,7 +30,8 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     @EntityGraph(attributePaths = {"promotion", "createdBy", "serviceSession"})
     @Query("SELECT b FROM Bill b WHERE " +
-           "(:search IS NULL OR LOWER(b.billCode) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(b.tableCode) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "(:search IS NULL OR LOWER(b.billCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "   OR LOWER(b.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) " +
            "ORDER BY b.createdAt DESC")
     Page<Bill> findAllFiltered(@Param("search") String search, Pageable pageable);
 
