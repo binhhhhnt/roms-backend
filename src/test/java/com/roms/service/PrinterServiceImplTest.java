@@ -43,7 +43,13 @@ class PrinterServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        System.setProperty("app.printer.simulate", "true");
         printerService = new PrinterServiceImpl(settingService, billService, orderRepository, orderItemRepository);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        System.clearProperty("app.printer.simulate");
     }
 
     @Test
@@ -149,15 +155,45 @@ class PrinterServiceImplTest {
         RestaurantTable table = RestaurantTable.builder().id(1L).tableCode("Bàn 05").build();
         ServiceSession session = ServiceSession.builder().id(50L).table(table).build();
         Order order = Order.builder().id(10L).serviceSession(session).createdAt(LocalDateTime.now()).build();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdWithSessionAndTable(10L)).thenReturn(Optional.of(order));
 
         MenuItem item = MenuItem.builder().id(1L).name("Cơm Chiên").build();
         OrderItem orderItem = OrderItem.builder().id(101L).menuItem(item).quantity(2).status(OrderItemStatus.READY).build();
-        when(orderItemRepository.findAllById(List.of(101L))).thenReturn(List.of(orderItem));
+        when(orderItemRepository.findAllByIdWithMenuItem(List.of(101L))).thenReturn(List.of(orderItem));
 
         printerService.printKitchenReadyTicket(10L, List.of(101L));
 
-        verify(orderRepository, timeout(1000)).findById(10L);
-        verify(orderItemRepository, timeout(1000)).findAllById(List.of(101L));
+        verify(orderRepository, timeout(1000)).findByIdWithSessionAndTable(10L);
+        verify(orderItemRepository, timeout(1000)).findAllByIdWithMenuItem(List.of(101L));
+    }
+
+    @Test
+    void printKitchenReadyTicket_withA5PaperAndLongNameWithNote_executesSuccessfully() {
+        RestaurantSettingResponse settings = RestaurantSettingResponse.builder()
+                .printReadyTicket(true)
+                .readyTicketPrinterName("Microsoft Print to PDF")
+                .readyTicketPaperSize("A5")
+                .build();
+        when(settingService.getSettings()).thenReturn(settings);
+
+        RestaurantTable table = RestaurantTable.builder().id(2L).tableCode("Bàn VIP 01").build();
+        ServiceSession session = ServiceSession.builder().id(51L).table(table).build();
+        Order order = Order.builder().id(11L).serviceSession(session).createdAt(LocalDateTime.now()).build();
+        when(orderRepository.findByIdWithSessionAndTable(11L)).thenReturn(Optional.of(order));
+
+        MenuItem item = MenuItem.builder().id(2L).name("Lẩu thái tomyum hải sản chua cay đặc biệt nồi lớn").build();
+        OrderItem orderItem = OrderItem.builder()
+                .id(102L)
+                .menuItem(item)
+                .quantity(1)
+                .note("Ít cay, không bỏ ngò rí")
+                .status(OrderItemStatus.READY)
+                .build();
+        when(orderItemRepository.findAllByIdWithMenuItem(List.of(102L))).thenReturn(List.of(orderItem));
+
+        printerService.printKitchenReadyTicket(11L, List.of(102L));
+
+        verify(orderRepository, timeout(1000)).findByIdWithSessionAndTable(11L);
+        verify(orderItemRepository, timeout(1000)).findAllByIdWithMenuItem(List.of(102L));
     }
 }

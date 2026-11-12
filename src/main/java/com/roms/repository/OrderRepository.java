@@ -33,6 +33,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
+    @Query("SELECT o FROM Order o LEFT JOIN FETCH o.serviceSession s LEFT JOIN FETCH s.table WHERE o.id = :id")
+    Optional<Order> findByIdWithSessionAndTable(@Param("id") Long id);
+
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND " +
            "o.createdAt BETWEEN :startDate AND :endDate")
     long countByStatusAndCreatedAtBetween(

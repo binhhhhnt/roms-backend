@@ -25,6 +25,8 @@ public final class StompDestinations {
     public static final String TOPIC_TABLES = "/topic/tables";
     public static final String TOPIC_BILLS = "/topic/bills";
     public static final String TOPIC_SERVICE_READY_DISHES = "/topic/service/ready-dishes";
+    public static final String TOPIC_SERVICE_STAFF_CALLS = "/topic/service/staff-calls";
+    public static final String TOPIC_SERVICE_STAFF_CALLS_ACK = "/topic/service/staff-calls-ack";
     public static final String TOPIC_SESSION_ORDERS_PATTERN = "^/topic/session/(\\d+)/orders$";
     public static final String USER_NOTIFICATIONS_QUEUE = "/user/queue/notifications";
 
@@ -42,6 +44,20 @@ public final class StompDestinations {
      */
     public static String serviceReadyDishes() {
         return TOPIC_SERVICE_READY_DISHES;
+    }
+
+    /**
+     * Build destination for service staff calls topic.
+     */
+    public static String serviceStaffCalls() {
+        return TOPIC_SERVICE_STAFF_CALLS;
+    }
+
+    /**
+     * Build destination for service staff calls acknowledgement topic.
+     */
+    public static String serviceStaffCallsAck() {
+        return TOPIC_SERVICE_STAFF_CALLS_ACK;
     }
 
     /**
