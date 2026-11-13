@@ -22,6 +22,9 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     @Query("SELECT oi FROM OrderItem oi JOIN FETCH oi.menuItem WHERE oi.order.id = :orderId ORDER BY oi.id ASC")
     List<OrderItem> findByOrderIdWithMenuItem(@Param("orderId") Long orderId);
 
+    @Query("SELECT oi FROM OrderItem oi LEFT JOIN FETCH oi.menuItem WHERE oi.id IN :ids ORDER BY oi.id ASC")
+    List<OrderItem> findAllByIdWithMenuItem(@Param("ids") java.util.Collection<Long> ids);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT oi FROM OrderItem oi WHERE oi.id = :id")
     Optional<OrderItem> findByIdForUpdate(@Param("id") Long id);

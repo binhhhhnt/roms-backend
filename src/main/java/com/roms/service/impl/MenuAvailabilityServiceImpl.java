@@ -8,6 +8,7 @@ import com.roms.entity.MenuItem;
 import com.roms.entity.RecipeItem;
 import com.roms.enums.MenuItemStatus;
 import com.roms.enums.UserRole;
+import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ForbiddenException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.repository.MenuItemRepository;
@@ -15,6 +16,8 @@ import com.roms.repository.RecipeItemRepository;
 import com.roms.security.SecurityUtils;
 import com.roms.service.MenuAvailabilityService;
 import com.roms.service.MenuContextCacheService;
+import com.roms.websocket.StompDestinations;
+import com.roms.websocket.StompEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,6 +40,7 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
     private final MenuItemRepository menuItemRepository;
     private final RecipeItemRepository recipeItemRepository;
     private final MenuContextCacheService menuContextCacheService;
+    private final StompEventPublisher stompEventPublisher;
 
     @Override
     @Transactional
@@ -58,6 +63,24 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
             throw new ForbiddenException("Only OWNER can change a DISCONTINUED menu item");
         }
 
+        if (request.getStatus() == MenuItemStatus.AVAILABLE) {
+            List<RecipeItem> recipes = recipeItemRepository.findByMenuItemIdWithIngredient(id);
+            if (recipes.isEmpty()) {
+                throw new BusinessRuleException("NO_RECIPE", "Không thể mở bán món ăn chưa được thiết lập định lượng nguyên liệu (BOM)");
+            }
+            for (RecipeItem recipe : recipes) {
+                Ingredient ingredient = recipe.getIngredient();
+                BigDecimal stock = (ingredient != null && ingredient.getCurrentStock() != null)
+                        ? ingredient.getCurrentStock() : BigDecimal.ZERO;
+                boolean isActive = ingredient != null && Boolean.TRUE.equals(ingredient.getIsActive());
+                if (!isActive || stock.compareTo(recipe.getQuantityRequired()) < 0) {
+                    String ingName = ingredient != null ? ingredient.getName() : "nguyên liệu";
+                    throw new BusinessRuleException("INSUFFICIENT_STOCK",
+                            "Không thể mở bán lại: Nguyên liệu [" + ingName + "] trong kho đã hết hoặc không đủ (tồn: " + stock + ")");
+                }
+            }
+        }
+
         menuItem.setStatus(request.getStatus());
         MenuItem saved = menuItemRepository.save(menuItem);
 
@@ -72,6 +95,12 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
         } else {
             menuContextCacheService.invalidateMenuContext();
         }
+
+        stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_MENU, Map.of(
+                "type", "MENU_STATUS_CHANGED",
+                "menuItemId", saved.getId(),
+                "status", saved.getStatus().name()
+        ));
 
         return MenuItemStatusResponse.builder()
                 .id(saved.getId())
@@ -89,29 +118,16 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
         MenuItem menuItem = menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id));
 
-        if (menuItem.getStatus() != MenuItemStatus.AVAILABLE) {
-            return MenuItemSellabilityResponse.builder()
-                    .menuItemId(menuItem.getId())
-                    .menuItemName(menuItem.getName())
-                    .status(menuItem.getStatus())
-                    .sellable(false)
-                    .reason("Menu item is currently " + menuItem.getStatus().name())
-                    .requestedQuantity(reqQty)
-                    .maxPossibleQuantity(0)
-                    .insufficientIngredients(Collections.emptyList())
-                    .build();
-        }
-
         List<RecipeItem> recipes = recipeItemRepository.findByMenuItemIdWithIngredient(id);
         if (recipes.isEmpty()) {
             return MenuItemSellabilityResponse.builder()
                     .menuItemId(menuItem.getId())
                     .menuItemName(menuItem.getName())
                     .status(menuItem.getStatus())
-                    .sellable(true)
-                    .reason(null)
+                    .sellable(false)
+                    .reason("Món chưa được thiết lập định lượng nguyên liệu (BOM)")
                     .requestedQuantity(reqQty)
-                    .maxPossibleQuantity(null)
+                    .maxPossibleQuantity(0)
                     .insufficientIngredients(Collections.emptyList())
                     .build();
         }
@@ -150,12 +166,26 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
             }
         }
 
+        Integer maxPossible = (minMaxPossible == Integer.MAX_VALUE) ? 0 : Math.max(0, minMaxPossible);
+
+        if (menuItem.getStatus() != MenuItemStatus.AVAILABLE) {
+            return MenuItemSellabilityResponse.builder()
+                    .menuItemId(menuItem.getId())
+                    .menuItemName(menuItem.getName())
+                    .status(menuItem.getStatus())
+                    .sellable(false)
+                    .reason("Menu item is currently " + menuItem.getStatus().name())
+                    .requestedQuantity(reqQty)
+                    .maxPossibleQuantity(maxPossible)
+                    .insufficientIngredients(insufficientList)
+                    .build();
+        }
+
         boolean sellable = insufficientList.isEmpty();
         String reason = sellable ? null : "Insufficient ingredient stock: " +
                 insufficientList.stream()
                         .map(MenuItemSellabilityResponse.InsufficientIngredientDto::getIngredientName)
                         .collect(Collectors.joining(", "));
-        Integer maxPossible = (minMaxPossible == Integer.MAX_VALUE) ? null : Math.max(0, minMaxPossible);
 
         return MenuItemSellabilityResponse.builder()
                 .menuItemId(menuItem.getId())
@@ -167,5 +197,51 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
                 .maxPossibleQuantity(maxPossible)
                 .insufficientIngredients(insufficientList)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void autoPauseMenuItemsWithInsufficientStock(java.util.Collection<Long> ingredientIds) {
+        if (ingredientIds == null || ingredientIds.isEmpty()) {
+            return;
+        }
+
+        List<Long> affectedMenuIds = recipeItemRepository.findMenuItemIdsByIngredientIdInAndMenuItemStatus(
+                ingredientIds, MenuItemStatus.AVAILABLE);
+
+        if (affectedMenuIds.isEmpty()) {
+            return;
+        }
+
+        boolean anyUpdated = false;
+        for (Long menuId : affectedMenuIds) {
+            MenuItemSellabilityResponse sellability = checkSellability(menuId, 1);
+            if (!sellability.isSellable() || (sellability.getMaxPossibleQuantity() != null && sellability.getMaxPossibleQuantity() <= 0)) {
+                MenuItem item = menuItemRepository.findById(menuId).orElse(null);
+                if (item != null && item.getStatus() == MenuItemStatus.AVAILABLE) {
+                    item.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+                    menuItemRepository.save(item);
+                    anyUpdated = true;
+                    log.info("Auto-paused menu item id={} ({}) due to insufficient ingredient stock", item.getId(), item.getName());
+                }
+            }
+        }
+
+        if (anyUpdated) {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        menuContextCacheService.invalidateMenuContext();
+                    }
+                });
+            } else {
+                menuContextCacheService.invalidateMenuContext();
+            }
+
+            stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_MENU, Map.of(
+                    "type", "MENU_AUTO_PAUSED"
+            ));
+        }
     }
 }

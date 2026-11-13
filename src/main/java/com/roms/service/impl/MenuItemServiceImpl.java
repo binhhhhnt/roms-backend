@@ -18,6 +18,7 @@ import com.roms.mapper.MenuItemImageMapper;
 import com.roms.repository.CategoryRepository;
 import com.roms.repository.MenuItemRepository;
 import com.roms.repository.MenuItemImageRepository;
+import com.roms.repository.RecipeItemRepository;
 import com.roms.repository.TaxCategoryRepository;
 import com.roms.service.MenuItemService;
 import com.roms.service.MenuAvailabilityService;
@@ -47,6 +48,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final CategoryMapper categoryMapper;
     private final MenuAvailabilityService availability;
     private final TaxCategoryRepository taxCategories;
+    private final RecipeItemRepository recipeItemRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -62,7 +64,8 @@ public class MenuItemServiceImpl implements MenuItemService {
                 throw new ForbiddenException("Role cannot view the requested menu status");
             statuses = EnumSet.of(status);
         }
-        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT,
+        boolean requireBom = (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
+        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT, requireBom,
                 normalizePageable(pageable));
         if (page.isEmpty())
             return PageResponse.from(page, item -> readResponse(item, List.of(), quantity));
@@ -85,6 +88,8 @@ public class MenuItemServiceImpl implements MenuItemService {
                 .filter(value -> visibleStatuses(role).contains(value.getStatus()))
                 .filter(value -> role != UserRole.TABLE_ACCOUNT
                         || Boolean.TRUE.equals(value.getCategory().getIsActive()))
+                .filter(value -> !(role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF)
+                        || recipeItemRepository.existsByMenuItemId(value.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
         List<MenuItemImageResponse> imageResponses = images.findCatalogImages(List.of(id)).stream()
                 .map(imageMapper::toResponse).toList();
@@ -104,9 +109,8 @@ public class MenuItemServiceImpl implements MenuItemService {
     private Set<MenuItemStatus> visibleStatuses(UserRole role) {
         return switch (role) {
             case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
-            case KITCHEN_STAFF, SERVICE_STAFF ->
+            case KITCHEN_STAFF, SERVICE_STAFF, TABLE_ACCOUNT ->
                 EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
-            case TABLE_ACCOUNT -> EnumSet.of(MenuItemStatus.AVAILABLE);
         };
     }
 
@@ -134,7 +138,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     public MenuItemResponse createMenuItem(MenuItemWriteRequest request) {
         CatalogAccess.requireOwner();
         MenuItem item = new MenuItem();
-        item.setStatus(MenuItemStatus.AVAILABLE);
+        item.setStatus(MenuItemStatus.DISCONTINUED);
         return write(request, item);
     }
 

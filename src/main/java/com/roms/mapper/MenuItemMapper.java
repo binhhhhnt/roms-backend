@@ -38,6 +38,9 @@ public class MenuItemMapper {
         if (request.getIsDirectSale() != null) {
             item.setIsDirectSale(request.getIsDirectSale());
         }
+        if (request.getStatus() != null) {
+            item.setStatus(request.getStatus());
+        }
     }
 
     public MenuItemResponse toResponse(MenuItem item) {

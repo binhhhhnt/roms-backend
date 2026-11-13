@@ -38,6 +38,8 @@ public interface RecipeItemRepository extends JpaRepository<RecipeItem, Long> {
 
     List<RecipeItem> findByMenuItemId(Long menuItemId);
 
+    boolean existsByMenuItemId(Long menuItemId);
+
     Optional<RecipeItem> findByMenuItemIdAndIngredientId(Long menuItemId, Long ingredientId);
 
     boolean existsByMenuItemIdAndIngredientId(Long menuItemId, Long ingredientId);
@@ -56,5 +58,11 @@ public interface RecipeItemRepository extends JpaRepository<RecipeItem, Long> {
     boolean existsByIngredientIdAndMenuItemStatusNot(
             @Param("ingredientId") Long ingredientId,
             @Param("excludedStatus") MenuItemStatus excludedStatus
+    );
+
+    @Query("SELECT DISTINCT r.menuItem.id FROM RecipeItem r WHERE r.ingredient.id IN :ingredientIds AND r.menuItem.status = :status")
+    List<Long> findMenuItemIdsByIngredientIdInAndMenuItemStatus(
+            @Param("ingredientIds") Collection<Long> ingredientIds,
+            @Param("status") MenuItemStatus status
     );
 }

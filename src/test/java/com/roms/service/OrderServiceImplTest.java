@@ -13,6 +13,8 @@ import com.roms.exception.ForbiddenException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.repository.*;
 import com.roms.security.UserPrincipal;
+import com.roms.service.MenuAvailabilityService;
+import com.roms.service.RestaurantSettingService;
 import com.roms.service.impl.OrderServiceImpl;
 import com.roms.websocket.OrderEventPublisher;
 import org.junit.jupiter.api.AfterEach;
@@ -70,6 +72,9 @@ class OrderServiceImplTest {
 
     @Mock
     private RestaurantSettingService restaurantSettingService;
+
+    @Mock
+    private MenuAvailabilityService menuAvailabilityService;
 
     @InjectMocks
     private OrderServiceImpl orderService;

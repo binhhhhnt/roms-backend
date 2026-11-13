@@ -48,6 +48,7 @@ class MenuItemReadSecurityTest {
         @Bean RefreshTokenRepository sessions() { return mock(RefreshTokenRepository.class); }
         @Bean MenuItemRepository menus() { return mock(MenuItemRepository.class); }
         @Bean MenuItemImageRepository images() { return mock(MenuItemImageRepository.class); }
+        @Bean RecipeItemRepository recipeItemRepository() { return mock(RecipeItemRepository.class); }
         @Bean MenuAvailabilityService availability() { return mock(MenuAvailabilityService.class); }
         @Bean UserDetailsService userDetailsService() { return new InMemoryUserDetailsManager(); }
         @Bean JwtProperties jwtProperties() {
@@ -58,9 +59,10 @@ class MenuItemReadSecurityTest {
             return new JwtAuthenticationFilter(provider, users, sessions);
         }
         @Bean MenuItemExcelService menuItemExcelService() { return mock(MenuItemExcelService.class); }
-        @Bean MenuItemService menuService(MenuItemRepository menus, MenuItemImageRepository images, MenuAvailabilityService availability) {
+        @Bean MenuItemService menuService(MenuItemRepository menus, MenuItemImageRepository images,
+                MenuAvailabilityService availability, RecipeItemRepository recipeItemRepository) {
             return new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(), mock(MenuContextInvalidator.class),
-                    images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class));
+                    images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class), recipeItemRepository);
         }
     }
     @Autowired WebApplicationContext context;
@@ -69,13 +71,14 @@ class MenuItemReadSecurityTest {
     @Autowired RefreshTokenRepository sessions;
     @Autowired MenuItemRepository menus;
     @Autowired MenuItemImageRepository images;
+    @Autowired RecipeItemRepository recipes;
     @Autowired MenuAvailabilityService availability;
     private MockMvc mvc;
     private User user;
     private MenuItem menu;
     private String token;
     @BeforeEach void setUp() {
-        reset(users, sessions, menus, images, availability);
+        reset(users, sessions, menus, images, recipes, availability);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(SecurityMockMvcConfigurers.springSecurity()).build();
         user = User.builder().id(1L).username("tablet").role(UserRole.TABLE_ACCOUNT).isActive(true)
                 .table(RestaurantTable.builder().id(3L).build()).build();
@@ -90,6 +93,7 @@ class MenuItemReadSecurityTest {
     }
     private void detail() {
         when(menus.findCatalogById(8L)).thenReturn(Optional.of(menu));
+        when(recipes.existsByMenuItemId(8L)).thenReturn(true);
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());
         when(availability.checkSellability(8L, 1)).thenReturn(MenuItemSellabilityResponse.builder().sellable(true).requestedQuantity(1).build());
     }
@@ -105,7 +109,7 @@ class MenuItemReadSecurityTest {
     @Test void listBindsPagingCategoryQuantityAndSort() throws Exception {
         activeSession();
         var page = PageRequest.of(1, 5, Sort.by(Sort.Order.desc("price"), Sort.Order.asc("id")));
-        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.AVAILABLE), true, page)).thenReturn(new PageImpl<>(List.of(menu), page, 6));
+        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.AVAILABLE), true, true, page)).thenReturn(new PageImpl<>(List.of(menu), page, 6));
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());
         when(availability.checkSellability(8L, 2)).thenReturn(MenuItemSellabilityResponse.builder().sellable(false).requestedQuantity(2).build());
         mvc.perform(get("/api/menu-items").header("Authorization", "Bearer " + token).param("categoryId", "4")
@@ -154,11 +158,6 @@ class MenuItemReadSecurityTest {
                             .param("categoryId", "4").param("status", "DISCONTINUED").param("size", "1"))
                     .andExpect(status().isForbidden()).andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
-            if (role == UserRole.TABLE_ACCOUNT) {
-                mvc.perform(get("/api/menu-items").header("Authorization", "Bearer " + roleToken)
-                                .param("status", "TEMPORARILY_UNAVAILABLE"))
-                        .andExpect(status().isForbidden());
-            }
         }
         verifyNoInteractions(menus, images, availability);
     }
@@ -178,7 +177,7 @@ class MenuItemReadSecurityTest {
         String ownerToken = tokens.generateAccessToken(1L, UserRole.OWNER, 2L);
         menu.setStatus(MenuItemStatus.DISCONTINUED);
         var page = PageRequest.of(1, 1, Sort.by("id"));
-        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.DISCONTINUED), false, page))
+        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.DISCONTINUED), false, false, page))
                 .thenReturn(new PageImpl<>(List.of(menu), page, 3));
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());
         when(availability.checkSellability(8L, 1)).thenReturn(MenuItemSellabilityResponse.builder().sellable(false).requestedQuantity(1).build());

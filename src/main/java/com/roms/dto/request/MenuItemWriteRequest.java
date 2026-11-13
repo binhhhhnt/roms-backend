@@ -27,6 +27,8 @@ public class MenuItemWriteRequest {
     @JsonAlias({"isDirectSale", "is_direct_sale"})
     private Boolean isDirectSale;
 
+    private com.roms.enums.MenuItemStatus status;
+
     public Long getTaxCategoryId() {
         return taxCategoryId;
     }

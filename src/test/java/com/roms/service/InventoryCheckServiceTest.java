@@ -53,6 +53,9 @@ class InventoryCheckServiceTest {
     @Mock
     private StockMovementService stockMovementService;
 
+    @Mock
+    private MenuAvailabilityService menuAvailabilityService;
+
     @Spy
     private InventoryCheckMapper inventoryCheckMapper = new InventoryCheckMapper();
 

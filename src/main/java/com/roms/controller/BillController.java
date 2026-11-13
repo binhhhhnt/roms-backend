@@ -32,7 +32,7 @@ public class BillController {
     }
 
     @PostMapping("/sessions/{sessionId}/checkout")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> checkout(
             @PathVariable Long sessionId,
             @Valid @RequestBody CheckoutBillRequest request) {
@@ -42,14 +42,14 @@ public class BillController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> getBillById(@PathVariable Long id) {
         BillResponse response = billService.getBillById(id);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin hóa đơn thành công", response));
     }
 
     @GetMapping("/sessions/{sessionId}")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> getBillBySessionId(@PathVariable Long sessionId) {
         BillResponse response = billService.getBillBySessionId(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin hóa đơn theo phiên thành công", response));
@@ -65,7 +65,7 @@ public class BillController {
     }
 
     @PostMapping("/{id}/print")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<Void>> printBill(@PathVariable Long id) {
         printerService.printBill(id);
         return ResponseEntity.ok(ApiResponse.success("Yêu cầu in hóa đơn đã được gửi tới máy in", null));

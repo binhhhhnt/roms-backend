@@ -29,16 +29,16 @@ class MenuCatalogPostgresReadTest {
 
     @Test void catalogQueriesRespectVisibilityCategoryFilterAndImageOrder() {
         var pageable = PageRequest.of(0, 20, Sort.by("name").and(Sort.by("id")));
-        var tabletPage = menus.findCatalog(null, EnumSet.of(MenuItemStatus.AVAILABLE), true, pageable);
+        var tabletPage = menus.findCatalog(null, EnumSet.of(MenuItemStatus.AVAILABLE), true, false, pageable);
         assertThat(tabletPage.getContent()).allSatisfy(menu -> {
             assertThat(menu.getCategory().getIsActive()).isTrue();
             assertThat(menu.getStatus()).isEqualTo(MenuItemStatus.AVAILABLE);
         });
-        var allPage = menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, pageable);
+        var allPage = menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, false, pageable);
         assertThat(allPage.getTotalElements()).isGreaterThanOrEqualTo(tabletPage.getTotalElements());
         if (allPage.hasContent()) {
             var first = allPage.getContent().getFirst();
-            var categoryPage = menus.findCatalog(first.getCategory().getId(), EnumSet.allOf(MenuItemStatus.class), false, pageable);
+            var categoryPage = menus.findCatalog(first.getCategory().getId(), EnumSet.allOf(MenuItemStatus.class), false, false, pageable);
             assertThat(categoryPage.getContent()).allSatisfy(menu -> assertThat(menu.getCategory().getId()).isEqualTo(first.getCategory().getId()));
             assertThat(menus.findCatalogById(first.getId())).isPresent();
             var imageRows = images.findCatalogImages(List.of(first.getId()));
@@ -74,7 +74,7 @@ class MenuCatalogPostgresReadTest {
                     int totalPages = (expected.size() + 1) / 2;
                     // Include one page beyond the end to exercise the count query as well.
                     for (int page = 0; page <= totalPages; page++) {
-                        var result = menus.findCatalog(categoryId, statuses, tablet, PageRequest.of(page, 2, Sort.by("id")));
+                        var result = menus.findCatalog(categoryId, statuses, tablet, false, PageRequest.of(page, 2, Sort.by("id")));
                         assertThat(result.getTotalElements()).isEqualTo(expected.size());
                         assertThat(result.getTotalPages()).isEqualTo(totalPages);
                         actual.addAll(result.getContent().stream().map(MenuItem::getId).toList());

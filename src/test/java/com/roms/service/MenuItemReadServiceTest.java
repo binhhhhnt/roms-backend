@@ -20,14 +20,17 @@ import static org.mockito.Mockito.*;
 class MenuItemReadServiceTest {
     private MenuItemRepository menus;
     private MenuItemImageRepository images;
+    private RecipeItemRepository recipes;
     private MenuAvailabilityService availability;
     private MenuItemService service;
     private final Pageable page = PageRequest.of(0, 20, Sort.by("name").and(Sort.by("id")));
     @BeforeEach void setUp() {
         menus = mock(MenuItemRepository.class); images = mock(MenuItemImageRepository.class);
+        recipes = mock(RecipeItemRepository.class);
+        when(recipes.existsByMenuItemId(anyLong())).thenReturn(true);
         availability = mock(MenuAvailabilityService.class);
         service = new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(),
-                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class));
+                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class), recipes);
         authenticate(UserRole.TABLE_ACCOUNT);
     }
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
@@ -46,7 +49,7 @@ class MenuItemReadServiceTest {
     @Test void tabletListUsesDatabaseVisibilityBeforePaginationAndBatchImages() {
         var item = item(8L, true, MenuItemStatus.AVAILABLE);
         var insertionOrder = PageRequest.of(0, 20, Sort.by("id"));
-        when(menus.findCatalog(3L, EnumSet.of(MenuItemStatus.AVAILABLE), true, insertionOrder)).thenReturn(new PageImpl<>(List.of(item), insertionOrder, 1));
+        when(menus.findCatalog(3L, EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE), true, true, insertionOrder)).thenReturn(new PageImpl<>(List.of(item), insertionOrder, 1));
         var first = MenuItemImage.builder().id(11L).menuItem(item).displayOrder(0).imageUrl("https://example.com/1").build();
         var second = MenuItemImage.builder().id(12L).menuItem(item).displayOrder(1).imageUrl("https://example.com/2").build();
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of(first, second));
@@ -65,10 +68,10 @@ class MenuItemReadServiceTest {
     @Test void ownerDefaultOrderPutsLaterItemsAfterExistingItemsAcrossPages() {
         authenticate(UserRole.OWNER);
         var expected = PageRequest.of(2, 20, Sort.by("id"));
-        when(menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, expected))
+        when(menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, false, expected))
                 .thenReturn(new PageImpl<>(List.of(), expected, 40));
         service.getMenuItems(null, null, 1, PageRequest.of(2, 20));
-        verify(menus).findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, expected);
+        verify(menus).findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, false, expected);
     }
     @Test void ownerAndInventoryKeepDiscontinuedAndInactiveCategoryAccess() {
         when(menus.findCatalogById(8L)).thenReturn(Optional.of(item(8L, false, MenuItemStatus.DISCONTINUED)));
@@ -102,7 +105,7 @@ class MenuItemReadServiceTest {
     @Test void staffListCapsSizeAndAppendsStableIdSort() {
         authenticate(UserRole.OWNER);
         var normalized = PageRequest.of(2, 100, Sort.by(Sort.Order.desc("price"), Sort.Order.asc("id")));
-        when(menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, normalized)).thenReturn(new PageImpl<>(List.of(), normalized, 0));
+        when(menus.findCatalog(null, EnumSet.allOf(MenuItemStatus.class), false, false, normalized)).thenReturn(new PageImpl<>(List.of(), normalized, 0));
         var result = service.getMenuItems(null, null, 1, PageRequest.of(2, 500, Sort.by(Sort.Order.desc("price"))));
         assertThat(result.getSize()).isEqualTo(100);
         assertThat(result.getPage()).isEqualTo(2);
@@ -121,7 +124,7 @@ class MenuItemReadServiceTest {
     }
     @Test void groupsImagesPerMenuAndUsesEmptyArrayForNoImages() {
         var first = item(8L, true, MenuItemStatus.AVAILABLE); var second = item(9L, true, MenuItemStatus.AVAILABLE);
-        when(menus.findCatalog(null, EnumSet.of(MenuItemStatus.AVAILABLE), true, page)).thenReturn(new PageImpl<>(List.of(first, second), page, 2));
+        when(menus.findCatalog(null, EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE), true, true, page)).thenReturn(new PageImpl<>(List.of(first, second), page, 2));
         when(images.findCatalogImages(List.of(8L, 9L))).thenReturn(List.of(MenuItemImage.builder().id(12L).menuItem(second).imageUrl("https://example.com/2").displayOrder(0).build()));
         when(availability.checkSellability(anyLong(), eq(1))).thenReturn(sellability(true, 1));
         var result = service.getMenuItems(null, null, 1, page);
@@ -131,9 +134,10 @@ class MenuItemReadServiceTest {
 
     @Test void integratesActualBe008LogicAndReflectsChangedIngredientStock() {
         var recipeRepository = mock(RecipeItemRepository.class);
-        var liveAvailability = new MenuAvailabilityServiceImpl(menus, recipeRepository, mock(MenuContextCacheService.class));
+        when(recipeRepository.existsByMenuItemId(anyLong())).thenReturn(true);
+        var liveAvailability = new MenuAvailabilityServiceImpl(menus, recipeRepository, mock(MenuContextCacheService.class), mock(com.roms.websocket.StompEventPublisher.class));
         var liveService = new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(),
-                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), liveAvailability, mock(TaxCategoryRepository.class));
+                mock(MenuContextInvalidator.class), images, new MenuItemImageMapper(), new CategoryMapper(), liveAvailability, mock(TaxCategoryRepository.class), recipeRepository);
         var menu = item(8L, true, MenuItemStatus.AVAILABLE);
         var ingredient = Ingredient.builder().id(5L).name("Ingredient").unit("kg").isActive(true).currentStock(new BigDecimal("10")).build();
         var recipe = RecipeItem.builder().menuItem(menu).ingredient(ingredient).quantityRequired(new BigDecimal("2")).build();
@@ -155,15 +159,15 @@ class MenuItemReadServiceTest {
     @Test void everyRolePassesOnlyItsVisibleStatusesToDatabaseBeforePaging() {
         for (UserRole role : UserRole.values()) {
             authenticate(role);
+            boolean requireBom = (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
             Set<MenuItemStatus> expected = switch (role) {
                 case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
-                case SERVICE_STAFF, KITCHEN_STAFF -> EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
-                case TABLE_ACCOUNT -> EnumSet.of(MenuItemStatus.AVAILABLE);
+                case SERVICE_STAFF, KITCHEN_STAFF, TABLE_ACCOUNT -> EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
             };
-            when(menus.findCatalog(3L, expected, role == UserRole.TABLE_ACCOUNT, page))
+            when(menus.findCatalog(3L, expected, role == UserRole.TABLE_ACCOUNT, requireBom, page))
                     .thenReturn(new PageImpl<>(List.of(), page, 0));
             service.getMenuItems(3L, null, 1, page);
-            verify(menus).findCatalog(3L, expected, role == UserRole.TABLE_ACCOUNT, page);
+            verify(menus).findCatalog(3L, expected, role == UserRole.TABLE_ACCOUNT, requireBom, page);
             clearInvocations(menus);
         }
         verifyNoInteractions(images, availability);
@@ -173,15 +177,16 @@ class MenuItemReadServiceTest {
         var requestedPage = PageRequest.of(2, 5, Sort.by("name").and(Sort.by("id")));
         for (UserRole role : UserRole.values()) {
             authenticate(role);
+            boolean requireBom = (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
             for (MenuItemStatus status : MenuItemStatus.values()) {
                 boolean permitted = role == UserRole.OWNER || role == UserRole.INVENTORY_STAFF
                         || (status == MenuItemStatus.AVAILABLE)
-                        || (role != UserRole.TABLE_ACCOUNT && status == MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+                        || (status == MenuItemStatus.TEMPORARILY_UNAVAILABLE);
                 if (!permitted) continue;
-                when(menus.findCatalog(3L, EnumSet.of(status), role == UserRole.TABLE_ACCOUNT, requestedPage))
+                when(menus.findCatalog(3L, EnumSet.of(status), role == UserRole.TABLE_ACCOUNT, requireBom, requestedPage))
                         .thenReturn(new PageImpl<>(List.of(), requestedPage, 0));
                 service.getMenuItems(3L, status, 2, requestedPage);
-                verify(menus).findCatalog(3L, EnumSet.of(status), role == UserRole.TABLE_ACCOUNT, requestedPage);
+                verify(menus).findCatalog(3L, EnumSet.of(status), role == UserRole.TABLE_ACCOUNT, requireBom, requestedPage);
                 clearInvocations(menus);
             }
         }
@@ -193,9 +198,6 @@ class MenuItemReadServiceTest {
             assertThatThrownBy(() -> service.getMenuItems(3L, MenuItemStatus.DISCONTINUED, 1, page))
                     .isInstanceOf(ForbiddenException.class);
         }
-        authenticate(UserRole.TABLE_ACCOUNT);
-        assertThatThrownBy(() -> service.getMenuItems(null, MenuItemStatus.TEMPORARILY_UNAVAILABLE, 1, page))
-                .isInstanceOf(ForbiddenException.class);
         verifyNoInteractions(menus, images, availability);
     }
 
@@ -205,9 +207,21 @@ class MenuItemReadServiceTest {
             when(menus.findCatalogById(8L)).thenReturn(Optional.of(item(8L, true, MenuItemStatus.DISCONTINUED)));
             assertThatThrownBy(() -> service.getMenuItem(8L, 1)).isInstanceOf(ResourceNotFoundException.class);
         }
-        authenticate(UserRole.TABLE_ACCOUNT);
-        when(menus.findCatalogById(8L)).thenReturn(Optional.of(item(8L, true, MenuItemStatus.TEMPORARILY_UNAVAILABLE)));
-        assertThatThrownBy(() -> service.getMenuItem(8L, 1)).isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(images, availability);
+    }
+
+    @Test void itemsWithoutBomAreBlockedForOrderRoles() {
+        when(menus.findCatalogById(8L)).thenReturn(Optional.of(item(8L, true, MenuItemStatus.AVAILABLE)));
+        when(recipes.existsByMenuItemId(8L)).thenReturn(false);
+        for (UserRole role : List.of(UserRole.TABLE_ACCOUNT, UserRole.SERVICE_STAFF)) {
+            authenticate(role);
+            assertThatThrownBy(() -> service.getMenuItem(8L, 1)).isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessage("Menu item not found");
+        }
+        // But OWNER can still see it
+        authenticate(UserRole.OWNER);
+        when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());
+        when(availability.checkSellability(8L, 1)).thenReturn(sellability(false, 1));
+        assertThat(service.getMenuItem(8L, 1).getId()).isEqualTo(8L);
     }
 }

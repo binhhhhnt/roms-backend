@@ -27,4 +27,12 @@ public interface MenuAvailabilityService {
      * @return sellability details
      */
     MenuItemSellabilityResponse checkSellability(Long id, Integer quantity);
+
+    /**
+     * Tự động quét và chuyển trạng thái các món ăn đang AVAILABLE sang TEMPORARILY_UNAVAILABLE
+     * nếu các nguyên liệu bị ảnh hưởng không còn đủ để chế biến tối thiểu 1 suất.
+     *
+     * @param ingredientIds Danh sách ID nguyên liệu vừa bị giảm tồn kho
+     */
+    void autoPauseMenuItemsWithInsufficientStock(java.util.Collection<Long> ingredientIds);
 }
