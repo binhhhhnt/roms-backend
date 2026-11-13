@@ -15,6 +15,7 @@ import com.roms.repository.InventoryCheckRepository;
 import com.roms.repository.UserRepository;
 import com.roms.service.InventoryCheckService;
 import com.roms.service.StockMovementService;
+import com.roms.service.MenuAvailabilityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ public class InventoryCheckServiceImpl implements InventoryCheckService {
     private final UserRepository userRepository;
     private final StockMovementService stockMovementService;
     private final InventoryCheckMapper inventoryCheckMapper;
+    private final MenuAvailabilityService menuAvailabilityService;
 
     @Override
     @Transactional(readOnly = true)
@@ -90,6 +92,8 @@ public class InventoryCheckServiceImpl implements InventoryCheckService {
                         .toList()
                 : Collections.emptyList();
 
+        List<Long> reducedIngredientIds = new ArrayList<>();
+
         for (InventoryCheckItemRequest itemReq : sortedItemRequests) {
             // Lock ingredient for concurrent balance protection (ordered by ingredientId ASC to prevent deadlocks)
             Ingredient ingredient = ingredientRepository.findByIdWithPessimisticLock(itemReq.getIngredientId())
@@ -117,6 +121,10 @@ public class InventoryCheckServiceImpl implements InventoryCheckService {
                 ingredient.setCurrentStock(actualQuantity);
                 ingredientRepository.save(ingredient);
 
+                if (difference.compareTo(BigDecimal.ZERO) < 0) {
+                    reducedIngredientIds.add(ingredient.getId());
+                }
+
                 String reasonText = (itemReq.getReason() != null && !itemReq.getReason().trim().isEmpty())
                         ? " (" + itemReq.getReason().trim() + ")"
                         : "";
@@ -130,6 +138,10 @@ public class InventoryCheckServiceImpl implements InventoryCheckService {
                         checkMovementNote
                 );
             }
+        }
+
+        if (!reducedIngredientIds.isEmpty()) {
+            menuAvailabilityService.autoPauseMenuItemsWithInsufficientStock(reducedIngredientIds);
         }
 
         log.info("Created inventory check id={} with {} items by userId={}",

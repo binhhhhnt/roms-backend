@@ -18,6 +18,7 @@ import com.roms.security.SecurityUtils;
 import com.roms.security.UserPrincipal;
 import com.roms.service.OrderService;
 import com.roms.service.RestaurantSettingService;
+import com.roms.service.MenuAvailabilityService;
 import com.roms.websocket.OrderEventPublisher;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -46,6 +47,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final RestaurantSettingService restaurantSettingService;
     private final OrderEventPublisher orderEventPublisher;
+    private final MenuAvailabilityService menuAvailabilityService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -72,7 +74,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         ServiceSession session = serviceSessionRepository.findById(request.getSessionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Service session not found with id: " + request.getSessionId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Service session not found with id: " + request.getSessionId()));
 
         if (session.getStatus() != ServiceSessionStatus.ACTIVE) {
             throw new BusinessRuleException("SESSION_NOT_ACTIVE", "Service session is not ACTIVE");
@@ -90,16 +93,15 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessRuleException("EMPTY_ORDER_ITEMS", "Order must contain at least one item");
         }
 
-        // 1. Validate all menu items are AVAILABLE and compute aggregate ingredient requirements
+        // 1. Validate all menu items are AVAILABLE and compute aggregate ingredient
+        // requirements
         Map<Long, MenuItem> menuItemMap = new HashMap<>();
         Map<Long, List<RecipeItem>> recipeMap = new HashMap<>();
         Map<Long, BigDecimal> aggregatedRequirements = new HashMap<>();
 
         for (CreateOrderItemRequest line : request.getItems()) {
-            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(), id ->
-                    menuItemRepository.findById(id)
-                            .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id))
-            );
+            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(), id -> menuItemRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id)));
 
             if (menuItem.getStatus() != MenuItemStatus.AVAILABLE) {
                 throw new BusinessRuleException("MENU_ITEM_UNAVAILABLE",
@@ -109,6 +111,12 @@ public class OrderServiceImpl implements OrderService {
             List<RecipeItem> recipes = recipeMap.computeIfAbsent(menuItem.getId(),
                     recipeItemRepository::findByMenuItemIdWithIngredient);
 
+            if (recipes.isEmpty()) {
+                throw new BusinessRuleException("NO_RECIPE",
+                        "Món '" + menuItem.getName()
+                                + "' chưa được thiết lập định lượng nguyên liệu (BOM) nên không thể đặt hàng");
+            }
+
             for (RecipeItem recipe : recipes) {
                 Long ingId = recipe.getIngredient().getId();
                 BigDecimal perItem = recipe.getQuantityRequired();
@@ -117,7 +125,8 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 2. Lock ingredients in consistent ascending ID order to prevent concurrency deadlocks
+        // 2. Lock ingredients in consistent ascending ID order to prevent concurrency
+        // deadlocks
         List<Long> sortedIngIds = aggregatedRequirements.keySet().stream().sorted().toList();
         Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
         for (Long ingId : sortedIngIds) {
@@ -127,7 +136,8 @@ public class OrderServiceImpl implements OrderService {
             lockedIngredients.put(ingId, ing);
         }
 
-        // 3. Check sufficiency for each locked ingredient; reject entire order if any is insufficient
+        // 3. Check sufficiency for each locked ingredient; reject entire order if any
+        // is insufficient
         List<Long> insufficientIngIds = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : aggregatedRequirements.entrySet()) {
             Long ingId = entry.getKey();
@@ -176,8 +186,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessRuleException(
                     "INSUFFICIENT_STOCK",
                     "Insufficient stock for some items in your order. Please reduce quantity or remove affected items.",
-                    errorDetails
-            );
+                    errorDetails);
         }
 
         // 4. Persist Order
@@ -191,7 +200,8 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         Order savedOrder = orderRepository.save(order);
 
-        // 5. Persist OrderItems, deduct stock, and record negative ORDER_CONSUMPTION movements
+        // 5. Persist OrderItems, deduct stock, and record negative ORDER_CONSUMPTION
+        // movements
         boolean menuPriceIncludesVat = restaurantSettingService.isMenuPriceIncludesVat();
         List<OrderItem> savedItems = new ArrayList<>();
 
@@ -237,6 +247,9 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
+        // Auto-pause menu items that no longer have enough ingredient stock
+        menuAvailabilityService.autoPauseMenuItemsWithInsufficientStock(lockedIngredients.keySet());
+
         // Broadcast STOMP events after commit
         orderEventPublisher.publishOrderCreated(savedOrder, savedItems.size());
 
@@ -252,7 +265,8 @@ public class OrderServiceImpl implements OrderService {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal().orElse(null);
         if (currentUser != null && currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
             Long sessionTableId = order.getServiceSession().getTable() != null
-                    ? order.getServiceSession().getTable().getId() : null;
+                    ? order.getServiceSession().getTable().getId()
+                    : null;
             if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
                 throw new ForbiddenException("Cannot view order from other tables");
             }
@@ -266,26 +280,37 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrders(Long sessionId, OrderStatus status) {
         UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal().orElse(null);
+        Long targetSessionId;
 
         if (currentUser != null && currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
             if (sessionId != null) {
-                ServiceSession session = serviceSessionRepository.findById(sessionId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Session not found with id: " + sessionId));
+                final Long sid = sessionId;
+                ServiceSession session = serviceSessionRepository.findById(sid)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Session not found with id: " + sid));
                 Long sessionTableId = session.getTable() != null ? session.getTable().getId() : null;
                 if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
                     throw new ForbiddenException("Cannot view orders from other tables");
                 }
+                targetSessionId = sessionId;
+            } else {
+                // If tablet does not supply sessionId, check current ACTIVE session
+                Long tableId = currentUser.getTableId();
+                if (tableId == null) {
+                    return Collections.emptyList();
+                }
+                Optional<ServiceSession> activeSession = serviceSessionRepository.findByTableIdAndStatus(
+                        tableId, ServiceSessionStatus.ACTIVE);
+                if (activeSession.isEmpty()) {
+                    return Collections.emptyList();
+                }
+                targetSessionId = activeSession.get().getId();
             }
+        } else {
+            targetSessionId = sessionId;
         }
 
-        List<Order> orders = orderRepository.findOrdersFiltered(sessionId, status);
-
-        if (currentUser != null && currentUser.getRole() == UserRole.TABLE_ACCOUNT && sessionId == null) {
-            Long tableId = currentUser.getTableId();
-            orders = orders.stream()
-                    .filter(o -> o.getServiceSession().getTable() != null && Objects.equals(o.getServiceSession().getTable().getId(), tableId))
-                    .toList();
-        }
+        List<Order> orders = orderRepository.findOrdersFiltered(targetSessionId, status);
 
         return orders.stream()
                 .map(o -> {
@@ -312,7 +337,8 @@ public class OrderServiceImpl implements OrderService {
 
         if (role == UserRole.TABLE_ACCOUNT) {
             Long sessionTableId = order.getServiceSession().getTable() != null
-                    ? order.getServiceSession().getTable().getId() : null;
+                    ? order.getServiceSession().getTable().getId()
+                    : null;
             if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
                 throw new ForbiddenException("Cannot cancel order from other tables");
             }
@@ -366,7 +392,8 @@ public class OrderServiceImpl implements OrderService {
 
         if (role == UserRole.TABLE_ACCOUNT) {
             Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
-                    ? item.getOrder().getServiceSession().getTable().getId() : null;
+                    ? item.getOrder().getServiceSession().getTable().getId()
+                    : null;
             if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
                 throw new ForbiddenException("Cannot cancel item from other tables");
             }
@@ -395,7 +422,8 @@ public class OrderServiceImpl implements OrderService {
                     : currentUser.getUsername() + " (#" + currentUser.getId() + ")";
             String itemName = (item.getMenuItem() != null) ? item.getMenuItem().getName() : ("Item #" + item.getId());
             Long parentOrderId = (item.getOrder() != null) ? item.getOrder().getId() : null;
-            String movementNote = "Hoàn kho - Hủy Đơn #" + parentOrderId + " (" + itemName + " x" + cancelQty + ") • Bởi: " + cancellerInfo;
+            String movementNote = "Hoàn kho - Hủy Đơn #" + parentOrderId + " (" + itemName + " x" + cancelQty
+                    + ") • Bởi: " + cancellerInfo;
 
             restoreStockForItem(item, cancelQty, currentQty, movementNote);
 
@@ -500,7 +528,8 @@ public class OrderServiceImpl implements OrderService {
      */
     private void cancelAndRestoreItem(OrderItem item, String reason, User canceller) {
         int currentQty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1;
-        String cancellerInfo = (canceller != null) ? canceller.getUsername() + " (#" + canceller.getId() + ")" : "Hệ thống";
+        String cancellerInfo = (canceller != null) ? canceller.getUsername() + " (#" + canceller.getId() + ")"
+                : "Hệ thống";
         String itemName = (item.getMenuItem() != null) ? item.getMenuItem().getName() : ("Item #" + item.getId());
         Long parentOrderId = (item.getOrder() != null) ? item.getOrder().getId() : null;
         String movementNote = "Hoàn kho - Hủy Đơn #" + parentOrderId + " (" + itemName + ") • Bởi: " + cancellerInfo;
@@ -515,7 +544,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Restore stock proportionally (or fully) based on remaining net ORDER_CONSUMPTION movements.
+     * Restore stock proportionally (or fully) based on remaining net
+     * ORDER_CONSUMPTION movements.
      */
     private void restoreStockForItem(OrderItem item, int cancelQty, int currentQty, String movementNote) {
         List<StockMovement> originalMovements = stockMovementRepository.findByOrderItemId(item.getId());
@@ -578,9 +608,11 @@ public class OrderServiceImpl implements OrderService {
     private OrderResponse mapToOrderResponse(Order order, List<OrderItem> items) {
         Long sessionId = order.getServiceSession() != null ? order.getServiceSession().getId() : null;
         Long tableId = (order.getServiceSession() != null && order.getServiceSession().getTable() != null)
-                ? order.getServiceSession().getTable().getId() : null;
+                ? order.getServiceSession().getTable().getId()
+                : null;
         String tableCode = (order.getServiceSession() != null && order.getServiceSession().getTable() != null)
-                ? order.getServiceSession().getTable().getTableCode() : null;
+                ? order.getServiceSession().getTable().getTableCode()
+                : null;
 
         List<OrderItemResponse> itemResponses = (items != null)
                 ? items.stream().map(this::mapToOrderItemResponse).toList()
@@ -611,9 +643,8 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderItemResponse mapToOrderItemResponse(OrderItem item) {
         int returned = item.getReturnedQuantity() != null ? item.getReturnedQuantity() : 0;
-        int effectiveQty = Math.max(0, (item.getQuantity() != null ? item.getQuantity() : 0) - returned);
-        BigDecimal subtotal = (item.getUnitPrice() != null)
-                ? item.getUnitPrice().multiply(BigDecimal.valueOf(effectiveQty))
+        BigDecimal subtotal = (item.getUnitPrice() != null && item.getQuantity() != null)
+                ? item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()))
                 : BigDecimal.ZERO;
 
         return OrderItemResponse.builder()
@@ -690,8 +721,7 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(
                         ReturnOrderItemsRequest.ItemReturnDto::getOrderItemId,
                         ReturnOrderItemsRequest.ItemReturnDto::getReturnQuantity,
-                        Integer::sum
-                ));
+                        Integer::sum));
 
         // 2. Validate items
         Set<Long> menuItemIds = new HashSet<>();
@@ -712,7 +742,8 @@ public class OrderServiceImpl implements OrderService {
 
             if (item.getMenuItem() == null || !Boolean.TRUE.equals(item.getMenuItem().getIsDirectSale())) {
                 throw new BusinessRuleException("NOT_DIRECT_SALE",
-                        "Order item #" + itemId + " (" + (item.getMenuItem() != null ? item.getMenuItem().getName() : "")
+                        "Order item #" + itemId + " ("
+                                + (item.getMenuItem() != null ? item.getMenuItem().getName() : "")
                                 + ") is not a direct-sale item and cannot be returned");
             }
 
@@ -741,7 +772,8 @@ public class OrderServiceImpl implements OrderService {
         for (Long itemId : itemIds) {
             OrderItem item = itemMap.get(itemId);
             int returnQty = returnQtyByItemId.get(itemId);
-            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(), Collections.emptyList());
+            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(),
+                    Collections.emptyList());
             for (RecipeItem recipe : recipes) {
                 if (recipe.getIngredient() != null) {
                     BigDecimal toRestore = recipe.getQuantityRequired().multiply(BigDecimal.valueOf(returnQty));
@@ -750,7 +782,8 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 5. DEADLOCK PREVENTION: Sort ingredient IDs ascending prior to pessimistic write lock
+        // 5. DEADLOCK PREVENTION: Sort ingredient IDs ascending prior to pessimistic
+        // write lock
         List<Long> sortedIngIds = qtyToRestoreByIngId.keySet().stream().sorted().toList();
         Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
         for (Long ingId : sortedIngIds) {
@@ -773,9 +806,11 @@ public class OrderServiceImpl implements OrderService {
             item.setReturnedBy(currentUserEntity);
             orderItemRepository.save(item);
 
-            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(), Collections.emptyList());
+            List<RecipeItem> recipes = recipesByMenuItem.getOrDefault(item.getMenuItem().getId(),
+                    Collections.emptyList());
             for (RecipeItem recipe : recipes) {
-                if (recipe.getIngredient() == null) continue;
+                if (recipe.getIngredient() == null)
+                    continue;
                 Long ingId = recipe.getIngredient().getId();
                 Ingredient ing = lockedIngredients.get(ingId);
 

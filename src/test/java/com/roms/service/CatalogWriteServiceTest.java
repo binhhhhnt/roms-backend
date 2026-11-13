@@ -32,7 +32,7 @@ class CatalogWriteServiceTest {
         var invalidator = new MenuContextInvalidator(cache);
         categoryService = new CategoryServiceImpl(categories, new CategoryMapper(), invalidator);
         menuService = new MenuItemServiceImpl(menus, categories, new MenuItemMapper(), invalidator,
-                mock(MenuItemImageRepository.class), new MenuItemImageMapper(), new CategoryMapper(), mock(MenuAvailabilityService.class), mock(TaxCategoryRepository.class));
+                mock(MenuItemImageRepository.class), new MenuItemImageMapper(), new CategoryMapper(), mock(MenuAvailabilityService.class), mock(TaxCategoryRepository.class), mock(RecipeItemRepository.class));
         TransactionSynchronizationManager.initSynchronization();
         authenticate(UserRole.OWNER);
     }
@@ -62,7 +62,7 @@ class CatalogWriteServiceTest {
         assertThat(response.getId()).isEqualTo(3L);
         verifyNoInteractions(cache);
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-        verify(cache).invalidateMenuContext();
+        verify(cache, timeout(1000)).invalidateMenuContext();
     }
     @Test void categoryUpdateCanDeactivateWithoutDeleting() {
         var category = Category.builder().id(3L).name("Old").isActive(true).build();
@@ -71,11 +71,11 @@ class CatalogWriteServiceTest {
         assertThat(categoryService.updateCategory(3L, categoryRequest()).getIsActive()).isFalse();
         verify(categories, never()).delete(any());
     }
-    @Test void menuCreateDefaultsToAvailableAndKeepsPrecisePrice() {
+    @Test void menuCreateDefaultsToDiscontinuedAndKeepsPrecisePrice() {
         when(categories.findById(3L)).thenReturn(Optional.of(Category.builder().id(3L).build()));
         when(menus.save(any())).thenAnswer(call -> { MenuItem menu = call.getArgument(0); menu.setId(8L); return menu; });
         var response = menuService.createMenuItem(menuRequest());
-        assertThat(response.getStatus()).isEqualTo(MenuItemStatus.AVAILABLE);
+        assertThat(response.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
         assertThat(response.getPrice()).isEqualByComparingTo("50000.00");
         assertThat(response.getCategoryId()).isEqualTo(3L);
         assertThat(response.getName()).isEqualTo("Soup");

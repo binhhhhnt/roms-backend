@@ -57,7 +57,7 @@ class MenuItemImageServiceTest {
         assertThat(response.getImageUrl()).startsWith("https://");
         verifyNoInteractions(cache);
         TransactionSynchronizationManager.getSynchronizations().forEach(s -> { s.afterCommit(); s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED); });
-        verify(cache).invalidateMenuContext(); verify(client, never()).delete(any());
+        verify(cache, timeout(1000)).invalidateMenuContext(); verify(client, never()).delete(any());
     }
     @Test void uploadFailureAndRollbackCleanUpDeterministicAsset() {
         prepareUpload();

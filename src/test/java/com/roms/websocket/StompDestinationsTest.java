@@ -14,6 +14,7 @@ class StompDestinationsTest {
     void testDestinationBuilders() {
         assertThat(StompDestinations.kitchenOrders()).isEqualTo("/topic/kitchen/orders");
         assertThat(StompDestinations.tables()).isEqualTo("/topic/tables");
+        assertThat(StompDestinations.menu()).isEqualTo("/topic/menu");
         assertThat(StompDestinations.sessionOrders(42L)).isEqualTo("/topic/session/42/orders");
 
         assertThatThrownBy(() -> StompDestinations.sessionOrders(null))
@@ -82,6 +83,16 @@ class StompDestinationsTest {
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.INVENTORY_STAFF, null, "/topic/kitchen/orders", null)).isFalse();
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.INVENTORY_STAFF, null, "/topic/tables", null)).isFalse();
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.INVENTORY_STAFF, null, "/topic/session/10/orders", 5L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Menu topic should be authorized for OWNER, KITCHEN_STAFF, SERVICE_STAFF, and TABLE_ACCOUNT")
+    void testMenuTopicAuthorization() {
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.OWNER, null, "/topic/menu", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.KITCHEN_STAFF, null, "/topic/menu", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.SERVICE_STAFF, null, "/topic/menu", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, 1L, "/topic/menu", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.INVENTORY_STAFF, null, "/topic/menu", null)).isFalse();
     }
 
     @Test

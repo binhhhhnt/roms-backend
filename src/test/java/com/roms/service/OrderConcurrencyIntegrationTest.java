@@ -9,6 +9,7 @@ import com.roms.dto.response.KitchenOrderResponse;
 import com.roms.dto.response.OrderItemResponse;
 import com.roms.dto.response.OrderResponse;
 import com.roms.entity.*;
+import com.roms.entity.User;
 import com.roms.enums.*;
 import com.roms.exception.BusinessRuleException;
 import com.roms.repository.*;
@@ -205,10 +206,13 @@ class OrderConcurrencyIntegrationTest {
                 startLatch.await(); // synchronized starting gun
                 try {
                     OrderResponse res = orderService.createOrder(request);
+                    System.out.println("THREAD SUCCESS: " + res.getId());
                     successes.add(res);
                     createdOrderIds.add(res.getId());
                     return res;
                 } catch (Throwable t) {
+                    System.out.println("THREAD FAILURE: " + t.getClass().getName() + " - " + t.getMessage());
+                    t.printStackTrace();
                     failures.add(t);
                     throw t;
                 }
@@ -218,7 +222,12 @@ class OrderConcurrencyIntegrationTest {
         readyLatch.await(5, TimeUnit.SECONDS);
         startLatch.countDown(); // Launch both threads simultaneously
         executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+        for (Future<OrderResponse> future : futures) {
+            try {
+                future.get();
+            } catch (Exception ignored) {
+            }
+        }
 
         // Assertions:
         // Exactly 1 order created successfully
@@ -336,7 +345,7 @@ class OrderConcurrencyIntegrationTest {
                 .sessionId(testSession.getId())
                 .items(List.of(
                         CreateOrderItemRequest.builder().menuItemId(1L).quantity(1).build(), // Phở Bò Tái Nạm
-                        CreateOrderItemRequest.builder().menuItemId(8L).quantity(1).build()  // Khoai Tây Chiên
+                        CreateOrderItemRequest.builder().menuItemId(9L).quantity(1).build()  // Cà Phê Sữa Đá Sài Gòn
                 ))
                 .build();
 
@@ -407,7 +416,7 @@ class OrderConcurrencyIntegrationTest {
                 .sessionId(testSession.getId())
                 .items(List.of(
                         CreateOrderItemRequest.builder().menuItemId(1L).quantity(1).build(),
-                        CreateOrderItemRequest.builder().menuItemId(8L).quantity(1).build()
+                        CreateOrderItemRequest.builder().menuItemId(9L).quantity(1).build()
                 ))
                 .build();
 

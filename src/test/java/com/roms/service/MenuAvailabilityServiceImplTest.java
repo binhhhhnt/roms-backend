@@ -8,12 +8,14 @@ import com.roms.entity.MenuItem;
 import com.roms.entity.RecipeItem;
 import com.roms.enums.MenuItemStatus;
 import com.roms.enums.UserRole;
+import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ForbiddenException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.repository.MenuItemRepository;
 import com.roms.repository.RecipeItemRepository;
 import com.roms.security.UserPrincipal;
 import com.roms.service.impl.MenuAvailabilityServiceImpl;
+import com.roms.websocket.StompEventPublisher;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +49,9 @@ class MenuAvailabilityServiceImplTest {
 
     @Mock
     private MenuContextCacheService menuContextCacheService;
+
+    @Mock
+    private StompEventPublisher stompEventPublisher;
 
     @InjectMocks
     private MenuAvailabilityServiceImpl menuAvailabilityService;
@@ -174,9 +179,43 @@ class MenuAvailabilityServiceImplTest {
         testMenuItem.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
         when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Ingredient beef = Ingredient.builder().id(101L).name("Bia 333").currentStock(BigDecimal.valueOf(5)).isActive(true).build();
+        RecipeItem recipe = RecipeItem.builder().id(1L).menuItem(testMenuItem).ingredient(beef).quantityRequired(BigDecimal.ONE).build();
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipe));
+
         assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
                 .isEqualTo(MenuItemStatus.AVAILABLE);
         verify(menuContextCacheService).invalidateMenuContext();
+    }
+
+    @Test
+    @DisplayName("Cannot resume menu item when it has no BOM recipe (throws NO_RECIPE)")
+    void cannotResumeWhenItemHasNoRecipes() {
+        authenticateUser(UserRole.KITCHEN_STAFF);
+        testMenuItem.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
+
+        assertThatThrownBy(() -> menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("BOM");
+    }
+
+    @Test
+    @DisplayName("Cannot resume menu item when stock is insufficient (throws INSUFFICIENT_STOCK)")
+    void cannotResumeWhenStockIsInsufficient() {
+        authenticateUser(UserRole.KITCHEN_STAFF);
+        testMenuItem.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
+        when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
+
+        Ingredient beef = Ingredient.builder().id(101L).name("Bia 333").currentStock(BigDecimal.ZERO).isActive(true).build();
+        RecipeItem recipe = RecipeItem.builder().id(1L).menuItem(testMenuItem).ingredient(beef).quantityRequired(BigDecimal.ONE).build();
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipe));
+
+        assertThatThrownBy(() -> menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("đã hết hoặc không đủ");
     }
 
     @Test
@@ -199,24 +238,32 @@ class MenuAvailabilityServiceImplTest {
         testMenuItem.setStatus(MenuItemStatus.DISCONTINUED);
         when(menuItemRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testMenuItem));
         when(menuItemRepository.save(any(MenuItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Ingredient beef = Ingredient.builder().id(101L).name("Bia 333").currentStock(BigDecimal.valueOf(5)).isActive(true).build();
+        RecipeItem recipe = RecipeItem.builder().id(1L).menuItem(testMenuItem).ingredient(beef).quantityRequired(BigDecimal.ONE).build();
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipe));
+
         assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
                 .isEqualTo(MenuItemStatus.AVAILABLE);
         verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
-    @DisplayName("checkSellability: when status is TEMPORARILY_UNAVAILABLE, returns sellable=false without recipe check")
+    @DisplayName("checkSellability: when status is TEMPORARILY_UNAVAILABLE, returns sellable=false with calculated stock capacity")
     void shouldReturnNotSellableWhenStatusIsTemporarilyUnavailable() {
         testMenuItem.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
+
+        Ingredient beef = Ingredient.builder().id(101L).name("Bia 333").currentStock(BigDecimal.valueOf(5)).isActive(true).build();
+        RecipeItem recipe = RecipeItem.builder().id(1L).menuItem(testMenuItem).ingredient(beef).quantityRequired(BigDecimal.ONE).build();
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipe));
 
         MenuItemSellabilityResponse result = menuAvailabilityService.checkSellability(1L, 1);
 
         assertThat(result.isSellable()).isFalse();
         assertThat(result.getStatus()).isEqualTo(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
-        assertThat(result.getMaxPossibleQuantity()).isEqualTo(0);
+        assertThat(result.getMaxPossibleQuantity()).isEqualTo(5);
         assertThat(result.getReason()).contains("TEMPORARILY_UNAVAILABLE");
-        verifyNoInteractions(recipeItemRepository);
     }
 
     @Test
@@ -225,24 +272,27 @@ class MenuAvailabilityServiceImplTest {
         testMenuItem.setStatus(MenuItemStatus.DISCONTINUED);
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
 
+        Ingredient beef = Ingredient.builder().id(101L).name("Bia 333").currentStock(BigDecimal.valueOf(5)).isActive(true).build();
+        RecipeItem recipe = RecipeItem.builder().id(1L).menuItem(testMenuItem).ingredient(beef).quantityRequired(BigDecimal.ONE).build();
+        when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipe));
+
         MenuItemSellabilityResponse result = menuAvailabilityService.checkSellability(1L, 1);
 
         assertThat(result.isSellable()).isFalse();
         assertThat(result.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
-        assertThat(result.getMaxPossibleQuantity()).isEqualTo(0);
     }
 
     @Test
-    @DisplayName("checkSellability: when item has no recipes, returns sellable=true with unlimited capacity")
+    @DisplayName("checkSellability: when item has no recipes, returns sellable=false requiring BOM")
     void shouldReturnSellableWhenItemHasNoRecipes() {
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(testMenuItem));
         when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(Collections.emptyList());
 
         MenuItemSellabilityResponse result = menuAvailabilityService.checkSellability(1L, 2);
 
-        assertThat(result.isSellable()).isTrue();
-        assertThat(result.getReason()).isNull();
-        assertThat(result.getMaxPossibleQuantity()).isNull();
+        assertThat(result.isSellable()).isFalse();
+        assertThat(result.getReason()).contains("BOM");
+        assertThat(result.getMaxPossibleQuantity()).isEqualTo(0);
     }
 
     @Test
