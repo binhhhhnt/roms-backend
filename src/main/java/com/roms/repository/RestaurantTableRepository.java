@@ -8,12 +8,18 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface RestaurantTableRepository extends JpaRepository<RestaurantTable, Long> {
 
     Optional<RestaurantTable> findByTableCode(String tableCode);
+
+    Optional<RestaurantTable> findByQrToken(String qrToken);
+
+    List<RestaurantTable> findByIdInOrderByIdAsc(Collection<Long> ids);
 
     boolean existsByTableCode(String tableCode);
 

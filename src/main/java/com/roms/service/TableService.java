@@ -2,8 +2,10 @@ package com.roms.service;
 
 import com.roms.common.PageResponse;
 import com.roms.dto.request.CreateTableRequest;
+import com.roms.dto.request.GenerateTableQrRequest;
 import com.roms.dto.request.UpdateTableRequest;
 import com.roms.dto.request.UpdateTableStatusRequest;
+import com.roms.dto.response.GenerateTableQrResponse;
 import com.roms.dto.response.TableResponse;
 import org.springframework.data.domain.Pageable;
 
@@ -67,4 +69,12 @@ public interface TableService {
      * @return List<String> Danh sách tên các khu vực
      */
     List<String> getDistinctAreas();
+
+    /**
+     * Tạo mới hoặc làm mới mã QR (qrToken) cho danh sách bàn được chọn.
+     *
+     * @param request Danh sách ID bàn cần tạo mã QR
+     * @return GenerateTableQrResponse Thông tin nhà hàng và danh sách bàn kèm qrToken
+     */
+    GenerateTableQrResponse generateQrTokens(GenerateTableQrRequest request);
 }

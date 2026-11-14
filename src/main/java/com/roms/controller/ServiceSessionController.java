@@ -50,7 +50,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin phiên vừa mở với HTTP status 201 Created
      */
     @PostMapping("/tables/{tableId}/open")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> openSession(@PathVariable Long tableId) {
         ServiceSessionResponse session = sessionService.openSession(tableId);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -66,7 +66,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin phiên sau khi đóng
      */
     @PostMapping("/{sessionId}/close")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> closeSession(@PathVariable Long sessionId) {
         ServiceSessionResponse session = sessionService.closeSession(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Service session closed successfully", session));
@@ -80,7 +80,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin chi tiết phiên
      */
     @GetMapping("/{sessionId}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> getSessionById(@PathVariable Long sessionId) {
         ServiceSessionResponse session = sessionService.getSessionById(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Service session retrieved successfully", session));

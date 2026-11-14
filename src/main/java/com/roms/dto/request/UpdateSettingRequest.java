@@ -62,4 +62,8 @@ public class UpdateSettingRequest {
     @JsonProperty("ready_ticket_paper_size")
     @JsonAlias({"readyTicketPaperSize", "ready_ticket_paper_size"})
     private String readyTicketPaperSize;
+
+    @JsonProperty("qr_ordering_enabled")
+    @JsonAlias({"qrOrderingEnabled", "qr_ordering_enabled"})
+    private Boolean qrOrderingEnabled;
 }

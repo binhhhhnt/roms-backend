@@ -34,7 +34,7 @@ class CategoryControllerTest {
     void setUp() {
         SecurityContextHolder.clearContext();
         repository = mock(CategoryRepository.class);
-        var service = new CategoryServiceImpl(repository, new CategoryMapper(), mock(com.roms.service.impl.MenuContextInvalidator.class));
+        var service = new CategoryServiceImpl(repository, new CategoryMapper());
         mvc = MockMvcBuilders.standaloneSetup(new CategoryController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
@@ -54,10 +54,10 @@ class CategoryControllerTest {
 
     @Test
     void listReturnsApprovedEnvelopeAndDefaultPagination() throws Exception {
-        authenticate(UserRole.TABLE_ACCOUNT);
+        authenticate(UserRole.SERVICE_STAFF);
         var pageable = PageRequest.of(0, 20, Sort.by("displayOrder").and(Sort.by("id")));
         var category = Category.builder().id(7L).name("Main dishes").displayOrder(2).isActive(true).build();
-        when(repository.findByIsActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(category), pageable, 1));
+        when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(category), pageable, 1));
 
         mvc.perform(get("/api/categories"))
                 .andExpect(status().isOk())
@@ -94,10 +94,10 @@ class CategoryControllerTest {
     }
 
     @Test
-    void tabletInactiveDetailReturns404Envelope() throws Exception {
-        authenticate(UserRole.TABLE_ACCOUNT);
-        when(repository.findById(7L)).thenReturn(Optional.of(Category.builder().id(7L).isActive(false).build()));
-        mvc.perform(get("/api/categories/7"))
+    void missingCategoryDetailReturns404Envelope() throws Exception {
+        authenticate(UserRole.SERVICE_STAFF);
+        when(repository.findById(99L)).thenReturn(Optional.empty());
+        mvc.perform(get("/api/categories/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));

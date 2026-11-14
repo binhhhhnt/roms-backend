@@ -105,7 +105,7 @@ class OrderServiceImplTest {
         tableUser = User.builder()
                 .id(10L)
                 .username("table_t01")
-                .role(UserRole.TABLE_ACCOUNT)
+                .role(UserRole.SERVICE_STAFF)
                 .table(table1)
                 .isActive(true)
                 .build();
@@ -156,7 +156,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("createOrder: successfully creates order, deducts stock, records negative movements, and publishes STOMP event")
     void shouldCreateOrderSuccessfully() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItemPho));
@@ -211,23 +211,6 @@ class OrderServiceImplTest {
 
         // Verify STOMP after-commit events published
         verify(orderEventPublisher).publishOrderCreated(any(Order.class), eq(1));
-    }
-
-    @Test
-    @DisplayName("createOrder: throws 403 Forbidden if TABLE_ACCOUNT places order for another table")
-    void shouldThrowForbiddenWhenTableAccountOrdersForOtherTable() {
-        authenticate(UserRole.TABLE_ACCOUNT, 2L); // Table 2 authenticated
-
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1)); // Session is table 1
-
-        CreateOrderRequest request = CreateOrderRequest.builder()
-                .sessionId(100L)
-                .items(List.of(new CreateOrderItemRequest(1L, 1, null)))
-                .build();
-
-        assertThatThrownBy(() -> orderService.createOrder(request))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("cannot place orders for other tables");
     }
 
     @Test
@@ -305,7 +288,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: cancels PENDING order, restores ingredient stock, appends compensating movement")
     void shouldCancelPendingOrderAndRestoreStock() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -361,7 +344,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: throws 409 Conflict if order is COOKING or already CANCELLED")
     void shouldThrowConflictWhenCancellingNonPendingOrder() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -382,7 +365,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: cancels single item, restores stock, and cancels parent order if all items cancelled")
     void shouldCancelSingleOrderItemAndCancelParentOrder() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -430,7 +413,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: idempotent protection prevents restoring stock twice")
     void shouldNotRestoreStockTwiceForSameItem() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -497,7 +480,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrder: throws 409 Conflict if order is COMPLETED")
     void shouldThrowConflictWhenCancellingCompletedOrder() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -515,7 +498,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: throws 409 Conflict if order item is COOKING")
     void shouldThrowConflictWhenCancellingCookingOrderItem() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -541,7 +524,7 @@ class OrderServiceImplTest {
     @Test
     @DisplayName("cancelOrderItem: throws 409 Conflict if order item is COMPLETED")
     void shouldThrowConflictWhenCancellingCompletedOrderItem() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+        authenticate(UserRole.SERVICE_STAFF, null);
 
         Order order = Order.builder()
                 .id(901L)
@@ -691,9 +674,9 @@ class OrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("completeOrderItem: throws 403 Forbidden if TABLE_ACCOUNT attempts to complete item")
-    void shouldThrowForbiddenWhenTableAccountCompletesItem() {
-        authenticate(UserRole.TABLE_ACCOUNT, 1L);
+    @DisplayName("completeOrderItem: throws 403 Forbidden if KITCHEN_STAFF attempts to complete item")
+    void shouldThrowForbiddenWhenKitchenStaffCompletesItem() {
+        authenticate(UserRole.KITCHEN_STAFF, null);
 
         assertThatThrownBy(() -> orderService.completeOrderItem(901L, 801L))
                 .isInstanceOf(ForbiddenException.class)

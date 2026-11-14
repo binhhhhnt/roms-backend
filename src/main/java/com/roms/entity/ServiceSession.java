@@ -46,7 +46,7 @@ public class ServiceSession {
     private LocalDateTime openedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "opened_by", nullable = false)
+    @JoinColumn(name = "opened_by")
     private User openedBy;
 
     @Column(name = "closed_at")

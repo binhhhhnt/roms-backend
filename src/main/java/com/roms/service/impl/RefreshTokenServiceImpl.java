@@ -41,11 +41,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     public RefreshToken createSession(User user, String rawToken, String deviceId, int expiryDays) {
         LocalDateTime now = LocalDateTime.now();
 
-        // Thu hồi toàn bộ phiên trước đó nếu là tài khoản tablet tại bàn
-        if (user.getRole() == UserRole.TABLE_ACCOUNT) {
-            refreshTokenRepository.revokeAllByUserId(user.getId(), now);
-        }
-
         // Băm token sang SHA-256 để lưu DB
         String hash = TokenHashUtil.sha256(rawToken);
         LocalDateTime expiresAt = now.plusDays(expiryDays);

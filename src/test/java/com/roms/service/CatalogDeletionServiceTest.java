@@ -9,7 +9,6 @@ import com.roms.exception.*;
 import com.roms.repository.*;
 import com.roms.security.UserPrincipal;
 import com.roms.service.impl.CatalogDeletionServiceImpl;
-import com.roms.service.impl.MenuContextInvalidator;
 import org.junit.jupiter.api.*;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,7 +29,6 @@ class CatalogDeletionServiceTest {
     private RecipeItemRepository recipes;
     private MenuItemImageRepository images;
     private MenuItemImageService imageService;
-    private MenuContextInvalidator invalidator;
     private CatalogDeletionService service;
     private MockMvc mvc;
 
@@ -41,8 +39,7 @@ class CatalogDeletionServiceTest {
         recipes = mock(RecipeItemRepository.class);
         images = mock(MenuItemImageRepository.class);
         imageService = mock(MenuItemImageService.class);
-        invalidator = mock(MenuContextInvalidator.class);
-        service = new CatalogDeletionServiceImpl(categories, menus, orders, recipes, images, imageService, invalidator);
+        service = new CatalogDeletionServiceImpl(categories, menus, orders, recipes, images, imageService);
         mvc = MockMvcBuilders.standaloneSetup(new CatalogDeletionController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         authenticate(UserRole.OWNER);
@@ -69,7 +66,6 @@ class CatalogDeletionServiceTest {
         mvc.perform(delete("/api/categories/3")).andExpect(status().isNoContent()).andExpect(content().string(""));
         verify(categories).delete(any(Category.class));
         verify(categories).flush();
-        verify(invalidator).afterCommit();
     }
 
     @Test void categoryWithDishesReturnsConflictAndKeepsData() throws Exception {
@@ -79,7 +75,6 @@ class CatalogDeletionServiceTest {
                 .andExpect(jsonPath("$.error.code").value("CATEGORY_IN_USE"));
         verify(categories, never()).delete(any());
         verify(categories, never()).saveAll(any());
-        verifyNoInteractions(invalidator);
     }
 
     @Test void deletingMiddleCategoryCompactsOrderAndKeepsIdsAndInactiveCategories() {
@@ -96,7 +91,6 @@ class CatalogDeletionServiceTest {
         assertThat(paused.getIsActive()).isFalse();
         verify(categories).delete(removed);
         verify(categories).saveAll(List.of(paused, last));
-        verify(invalidator).afterCommit();
     }
 
     @Test void deletingFirstCategoryShiftsEveryRemainingPosition() {
@@ -138,7 +132,6 @@ class CatalogDeletionServiceTest {
         assertThatThrownBy(() -> service.deleteCategory(10L)).isInstanceOf(BusinessRuleException.class);
         assertThat(last.getDisplayOrder()).isEqualTo(2);
         verify(categories, never()).saveAll(any());
-        verifyNoInteractions(invalidator);
     }
 
     @Test void deletesUnusedDishWithItsRecipeAndImages() throws Exception {
@@ -146,14 +139,13 @@ class CatalogDeletionServiceTest {
         when(images.findCatalogImages(List.of(7L))).thenReturn(List.of(
                 MenuItemImage.builder().id(10L).build(), MenuItemImage.builder().id(11L).build()));
         mvc.perform(delete("/api/menu-items/7")).andExpect(status().isNoContent()).andExpect(content().string(""));
-        var order = inOrder(imageService, recipes, menus, invalidator);
+        var order = inOrder(imageService, recipes, menus);
         order.verify(imageService).deleteImage(7L, 10L);
         order.verify(imageService).deleteImage(7L, 11L);
         order.verify(recipes).deleteByMenuItemId(7L);
         order.verify(recipes).flush();
         order.verify(menus).delete(any(MenuItem.class));
         order.verify(menus).flush();
-        order.verify(invalidator).afterCommit();
     }
 
     @Test void orderedDishReturnsConflictBeforeDeletingImagesOrRecipe() throws Exception {
@@ -162,7 +154,7 @@ class CatalogDeletionServiceTest {
         mvc.perform(delete("/api/menu-items/7")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("MENU_ITEM_IN_USE"));
         verify(menus, never()).delete(any());
-        verifyNoInteractions(recipes, images, imageService, invalidator);
+        verifyNoInteractions(recipes, images, imageService);
     }
 
     @Test void imageFailureDoesNotDeleteDishOrRecipe() {
@@ -171,7 +163,7 @@ class CatalogDeletionServiceTest {
         doThrow(new BusinessRuleException("IMAGE_DELETE_FAILED", "Retry image cleanup")).when(imageService).deleteImage(7L, 10L);
         assertThatThrownBy(() -> service.deleteMenuItem(7L)).isInstanceOf(BusinessRuleException.class);
         verify(menus, never()).delete(any());
-        verifyNoInteractions(recipes, invalidator);
+        verifyNoInteractions(recipes);
     }
 
     @Test void concurrentReferenceConflictIsTranslatedAndDoesNotInvalidate() throws Exception {
@@ -179,20 +171,19 @@ class CatalogDeletionServiceTest {
         doThrow(new DataIntegrityViolationException("foreign key")).when(categories).flush();
         mvc.perform(delete("/api/categories/3")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("CATEGORY_IN_USE"));
-        verifyNoInteractions(invalidator);
     }
 
     @Test void missingResourcesReturn404() throws Exception {
         mvc.perform(delete("/api/categories/3")).andExpect(status().isNotFound());
         mvc.perform(delete("/api/menu-items/7")).andExpect(status().isNotFound());
-        verifyNoInteractions(images, orders, recipes, imageService, invalidator);
+        verifyNoInteractions(images, orders, recipes, imageService);
     }
 
     @Test void invalidIdentifiersReturn400WithoutPersistenceAccess() throws Exception {
         for (var path : List.of("/api/categories/0", "/api/categories/no", "/api/menu-items/-1", "/api/menu-items/no")) {
             mvc.perform(delete(path)).andExpect(status().isBadRequest());
         }
-        verifyNoInteractions(categories, menus, images, orders, recipes, imageService, invalidator);
+        verifyNoInteractions(categories, menus, images, orders, recipes, imageService);
     }
 
     @Test void everyNonOwnerRoleIsForbiddenBeforeResourceLookup() throws Exception {
@@ -202,13 +193,13 @@ class CatalogDeletionServiceTest {
             mvc.perform(delete("/api/categories/3")).andExpect(status().isForbidden());
             mvc.perform(delete("/api/menu-items/7")).andExpect(status().isForbidden());
         }
-        verifyNoInteractions(categories, menus, images, orders, recipes, imageService, invalidator);
+        verifyNoInteractions(categories, menus, images, orders, recipes, imageService);
     }
 
     @Test void anonymousDeletionIsRejectedBeforeResourceLookup() throws Exception {
         SecurityContextHolder.clearContext();
         mvc.perform(delete("/api/categories/3")).andExpect(status().isUnauthorized());
         mvc.perform(delete("/api/menu-items/7")).andExpect(status().isUnauthorized());
-        verifyNoInteractions(categories, menus, images, orders, recipes, imageService, invalidator);
+        verifyNoInteractions(categories, menus, images, orders, recipes, imageService);
     }
 }

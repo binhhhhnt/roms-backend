@@ -37,7 +37,7 @@ class CategoryServiceImplTest {
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
-        service = new CategoryServiceImpl(repository, new CategoryMapper(), mock(com.roms.service.impl.MenuContextInvalidator.class));
+        service = new CategoryServiceImpl(repository, new CategoryMapper());
     }
 
     @AfterEach
@@ -57,10 +57,10 @@ class CategoryServiceImplTest {
     }
 
     @Test
-    void tabletListFiltersInDatabaseBeforePaginationAndMapsMetadata() {
-        authenticate(UserRole.TABLE_ACCOUNT);
+    void listMapsMetadataAndUsesDefaultSort() {
+        authenticate(UserRole.SERVICE_STAFF);
         var pageable = PageRequest.of(1, 10, Sort.by("displayOrder").and(Sort.by("id")));
-        when(repository.findByIsActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(category(true)), pageable, 11));
+        when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(category(true)), pageable, 11));
 
         var result = service.getCategories(PageRequest.of(1, 10));
 
@@ -75,7 +75,6 @@ class CategoryServiceImplTest {
             assertThat(dto.getDisplayOrder()).isEqualTo(2);
             assertThat(dto.getIsActive()).isTrue();
         });
-        verify(repository, never()).findAll(any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
@@ -101,12 +100,8 @@ class CategoryServiceImplTest {
     }
 
     @Test
-    void tabletCanReadActiveCategoryButInactiveAndMissingHaveSameNotFoundResponse() {
-        authenticate(UserRole.TABLE_ACCOUNT);
-        when(repository.findById(7L)).thenReturn(Optional.of(category(true)));
-        assertThat(service.getCategory(7L).getId()).isEqualTo(7L);
-        when(repository.findById(7L)).thenReturn(Optional.of(category(false)));
-        assertThatThrownBy(() -> service.getCategory(7L)).isInstanceOf(ResourceNotFoundException.class).hasMessage("Category not found");
+    void missingCategoryThrowsNotFound() {
+        authenticate(UserRole.SERVICE_STAFF);
         when(repository.findById(8L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.getCategory(8L)).isInstanceOf(ResourceNotFoundException.class).hasMessage("Category not found");
     }

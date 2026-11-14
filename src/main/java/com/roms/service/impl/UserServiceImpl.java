@@ -97,33 +97,11 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException("Email is already in use: " + email, "DUPLICATE_EMAIL");
         }
 
-        // 3. Xử lý logic ràng buộc gán bàn ăn theo vai trò
-        RestaurantTable table = null;
-        if (request.getRole() == UserRole.TABLE_ACCOUNT) {
-            // Đối với tài khoản tablet bàn: bắt buộc phải có tableId
-            if (request.getTableId() == null) {
-                throw new BusinessRuleException("Table ID is required for TABLE_ACCOUNT", "TABLE_ID_REQUIRED");
-            }
-            table = restaurantTableRepository.findById(request.getTableId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Table not found with id: " + request.getTableId()));
-
-            // Bàn gắn kết phải đang ở trạng thái hoạt động (is_active = true)
-            if (!Boolean.TRUE.equals(table.getIsActive())) {
-                throw new BusinessRuleException("Cannot link account to an inactive table", "TABLE_INACTIVE");
-            }
-
-            // Mỗi bàn chỉ được gắn tối đa với 1 tài khoản tablet duy nhất (uq_users_table_id)
-            final RestaurantTable foundTable = table;
-            userRepository.findByTableId(foundTable.getId()).ifPresent(existingUser -> {
-                throw new BusinessRuleException("Table " + foundTable.getTableCode() + " is already linked to user: " + existingUser.getUsername(),
-                        "TABLE_ALREADY_ASSIGNED");
-            });
-        } else {
-            // Đối với nhân viên (OWNER, SERVICE_STAFF, KITCHEN_STAFF, INVENTORY_STAFF): không được gán tableId
-            if (request.getTableId() != null) {
-                throw new BusinessRuleException("Staff accounts cannot be linked to a table", "INVALID_TABLE_ASSIGNMENT");
-            }
+        // 3. Nhân viên (OWNER, SERVICE_STAFF, KITCHEN_STAFF, INVENTORY_STAFF): không được gán tableId
+        if (request.getTableId() != null) {
+            throw new BusinessRuleException("Staff accounts cannot be linked to a table", "INVALID_TABLE_ASSIGNMENT");
         }
+        RestaurantTable table = null;
 
         // 4. Khởi tạo đối tượng User và mã hóa mật khẩu bằng BCrypt
         User user = User.builder()
@@ -159,29 +137,11 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException("Email is already in use: " + email, "DUPLICATE_EMAIL");
         }
 
-        // Kiểm tra ràng buộc vai trò và bàn ăn
-        RestaurantTable table = null;
-        if (request.getRole() == UserRole.TABLE_ACCOUNT) {
-            if (request.getTableId() == null) {
-                throw new BusinessRuleException("Table ID is required for TABLE_ACCOUNT", "TABLE_ID_REQUIRED");
-            }
-            table = restaurantTableRepository.findById(request.getTableId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Table not found with id: " + request.getTableId()));
-
-            final RestaurantTable foundTable = table;
-            Long newTableId = foundTable.getId();
-            // Đảm bảo bàn mới chưa bị user khác sử dụng
-            userRepository.findByTableId(newTableId)
-                    .filter(existingUser -> !existingUser.getId().equals(user.getId()))
-                    .ifPresent(existingUser -> {
-                        throw new BusinessRuleException("Table " + foundTable.getTableCode() + " is already linked to user: " + existingUser.getUsername(),
-                                "TABLE_ALREADY_ASSIGNED");
-                    });
-        } else {
-            if (request.getTableId() != null) {
-                throw new BusinessRuleException("Staff accounts cannot be linked to a table", "INVALID_TABLE_ASSIGNMENT");
-            }
+        // Nhân viên không được gán tableId
+        if (request.getTableId() != null) {
+            throw new BusinessRuleException("Staff accounts cannot be linked to a table", "INVALID_TABLE_ASSIGNMENT");
         }
+        RestaurantTable table = null;
 
         user.setFullName(request.getFullName().trim());
         user.setEmail(email);
@@ -215,22 +175,6 @@ public class UserServiceImpl implements UserService {
         Long currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
         if (id.equals(currentUserId) && Boolean.FALSE.equals(request.getIsActive())) {
             throw new BusinessRuleException("Cannot deactivate your own account", "CANNOT_DEACTIVATE_SELF");
-        }
-
-        // Quy tắc bảo vệ tài khoản bàn (TABLE_ACCOUNT):
-        // Chỉ tạm thời chặn khóa tài khoản khi bàn đang có phiên phục vụ hoạt động
-        if (user.getRole() == UserRole.TABLE_ACCOUNT && Boolean.FALSE.equals(request.getIsActive())) {
-            if (user.getTable() != null) {
-                boolean hasActiveSession = serviceSessionRepository.existsByTableIdAndStatus(
-                        user.getTable().getId(), ServiceSessionStatus.ACTIVE
-                );
-                if (hasActiveSession) {
-                    throw new BusinessRuleException(
-                            "Không thể khóa tài khoản khi bàn đang có phiên phục vụ hoạt động.",
-                            "TABLE_HAS_ACTIVE_SESSION"
-                    );
-                }
-            }
         }
 
         user.setIsActive(request.getIsActive());

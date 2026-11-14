@@ -3,8 +3,10 @@ package com.roms.controller;
 import com.roms.common.ApiResponse;
 import com.roms.common.PageResponse;
 import com.roms.dto.request.CreateTableRequest;
+import com.roms.dto.request.GenerateTableQrRequest;
 import com.roms.dto.request.UpdateTableRequest;
 import com.roms.dto.request.UpdateTableStatusRequest;
+import com.roms.dto.response.GenerateTableQrResponse;
 import com.roms.dto.response.TableResponse;
 import com.roms.service.TableService;
 import jakarta.validation.Valid;
@@ -81,7 +83,7 @@ public class TableController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin bàn ăn
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'TABLE_ACCOUNT')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<TableResponse>> getTableById(@PathVariable Long id) {
         TableResponse table = tableService.getTableById(id);
         return ResponseEntity.ok(ApiResponse.success("Table retrieved successfully", table));
@@ -147,5 +149,20 @@ public class TableController {
     public ResponseEntity<ApiResponse<List<String>>> getAreas() {
         List<String> areas = tableService.getDistinctAreas();
         return ResponseEntity.ok(ApiResponse.success("Areas retrieved successfully", areas));
+    }
+
+    /**
+     * Tạo mới hoặc làm mới mã QR cho các bàn được chọn.
+     * Quyền truy cập: Chỉ OWNER
+     *
+     * @param request Danh sách ID bàn
+     * @return Thông tin nhà hàng và danh sách bàn kèm qrToken
+     */
+    @PostMapping("/qr-tokens/generate")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<GenerateTableQrResponse>> generateQrTokens(
+            @Valid @RequestBody GenerateTableQrRequest request) {
+        GenerateTableQrResponse response = tableService.generateQrTokens(request);
+        return ResponseEntity.ok(ApiResponse.success("QR tokens generated successfully", response));
     }
 }

@@ -48,9 +48,6 @@ class MenuAvailabilityServiceImplTest {
     private RecipeItemRepository recipeItemRepository;
 
     @Mock
-    private MenuContextCacheService menuContextCacheService;
-
-    @Mock
     private StompEventPublisher stompEventPublisher;
 
     @InjectMocks
@@ -102,7 +99,6 @@ class MenuAvailabilityServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         assertThat(testMenuItem.getStatus()).isEqualTo(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         verify(menuItemRepository).save(testMenuItem);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -116,7 +112,6 @@ class MenuAvailabilityServiceImplTest {
         MenuItemStatusResponse response = menuAvailabilityService.updateMenuStatus(1L, request);
 
         assertThat(response.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -130,7 +125,6 @@ class MenuAvailabilityServiceImplTest {
         MenuItemStatusResponse response = menuAvailabilityService.updateMenuStatus(1L, request);
 
         assertThat(response.getStatus()).isEqualTo(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -145,7 +139,6 @@ class MenuAvailabilityServiceImplTest {
                 .hasMessageContaining("Only OWNER can mark a menu item as DISCONTINUED");
 
         verify(menuItemRepository, never()).save(any());
-        verify(menuContextCacheService, never()).invalidateMenuContext();
     }
 
     @Test
@@ -186,7 +179,6 @@ class MenuAvailabilityServiceImplTest {
 
         assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
                 .isEqualTo(MenuItemStatus.AVAILABLE);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -215,7 +207,7 @@ class MenuAvailabilityServiceImplTest {
 
         assertThatThrownBy(() -> menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("đã hết hoặc không đủ");
+                .hasMessageContaining("Insufficient stock for ingredient");
     }
 
     @Test
@@ -229,7 +221,6 @@ class MenuAvailabilityServiceImplTest {
         }
         assertThat(testMenuItem.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
         verify(menuItemRepository, never()).save(any());
-        verifyNoInteractions(menuContextCacheService);
     }
 
     @Test
@@ -245,7 +236,6 @@ class MenuAvailabilityServiceImplTest {
 
         assertThat(menuAvailabilityService.updateMenuStatus(1L, new UpdateMenuStatusRequest(MenuItemStatus.AVAILABLE)).getStatus())
                 .isEqualTo(MenuItemStatus.AVAILABLE);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test

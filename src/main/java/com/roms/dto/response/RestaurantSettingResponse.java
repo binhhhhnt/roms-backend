@@ -86,6 +86,14 @@ public class RestaurantSettingResponse {
         return readyTicketPaperSize;
     }
 
+    @JsonProperty("qr_ordering_enabled")
+    private Boolean qrOrderingEnabled;
+
+    @JsonProperty("qrOrderingEnabled")
+    public Boolean getQrOrderingEnabledCamel() {
+        return qrOrderingEnabled;
+    }
+
     @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 

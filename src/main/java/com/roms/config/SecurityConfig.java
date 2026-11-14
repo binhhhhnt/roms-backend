@@ -91,7 +91,8 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/forgot-password",
                                 "/api/auth/verify-otp",
-                                "/api/auth/reset-password"
+                                "/api/auth/reset-password",
+                                "/api/qr/**"
                         ).permitAll()
                         // Cho phép actuator health check và đường dẫn lỗi
                         .requestMatchers("/actuator/**", "/error").permitAll()

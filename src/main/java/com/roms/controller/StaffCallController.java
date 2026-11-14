@@ -32,16 +32,10 @@ public class StaffCallController {
      * Kiểm tra ràng buộc sở hữu bàn đối với TABLE_ACCOUNT.
      */
     @PostMapping("/{tableId}/call-staff")
-    @PreAuthorize("hasAnyRole('TABLE_ACCOUNT', 'SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<Void>> callStaff(
             @PathVariable Long tableId,
             @AuthenticationPrincipal UserPrincipal principal) {
-
-        if (principal.getRole().name().equals("TABLE_ACCOUNT")) {
-            if (!tableId.equals(principal.getTableId())) {
-                throw new ForbiddenException("Cannot call staff for another table");
-            }
-        }
 
         RestaurantTable table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table not found: " + tableId));

@@ -58,23 +58,12 @@ class StompDestinationsTest {
     }
 
     @Test
-    @DisplayName("TABLE_ACCOUNT should be authorized to session topic ONLY if tableId matches")
-    void testTableAccountAuthorization() {
-        Long tableId = 7L;
-        String sessionTopic = "/topic/session/10/orders";
-
-        // Matching table: allowed
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, sessionTopic, 7L)).isTrue();
-
-        // Mismatched table: denied
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, sessionTopic, 8L)).isFalse();
-
-        // Null session table: denied
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, sessionTopic, null)).isFalse();
-
-        // Cannot subscribe to kitchen or tables topics
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, "/topic/kitchen/orders", null)).isFalse();
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, tableId, "/topic/tables", null)).isFalse();
+    @DisplayName("STAFF_QR_ORDERS and QR_SESSION topics should follow staff/owner authorization")
+    void testStaffQrTopicsAuthorization() {
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.SERVICE_STAFF, null, "/topic/staff/qr-orders", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.OWNER, null, "/topic/staff/qr-orders", null)).isTrue();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.KITCHEN_STAFF, null, "/topic/staff/qr-orders", null)).isFalse();
+        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.SERVICE_STAFF, null, "/topic/qr/session/10", null)).isTrue();
     }
 
     @Test
@@ -86,12 +75,11 @@ class StompDestinationsTest {
     }
 
     @Test
-    @DisplayName("Menu topic should be authorized for OWNER, KITCHEN_STAFF, SERVICE_STAFF, and TABLE_ACCOUNT")
+    @DisplayName("Menu topic should be authorized for OWNER, KITCHEN_STAFF, and SERVICE_STAFF")
     void testMenuTopicAuthorization() {
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.OWNER, null, "/topic/menu", null)).isTrue();
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.KITCHEN_STAFF, null, "/topic/menu", null)).isTrue();
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.SERVICE_STAFF, null, "/topic/menu", null)).isTrue();
-        assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.TABLE_ACCOUNT, 1L, "/topic/menu", null)).isTrue();
         assertThat(StompDestinations.isAuthorizedToSubscribe(UserRole.INVENTORY_STAFF, null, "/topic/menu", null)).isFalse();
     }
 

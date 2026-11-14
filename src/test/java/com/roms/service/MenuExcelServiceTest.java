@@ -11,7 +11,6 @@ import com.roms.exception.*;
 import com.roms.repository.CategoryRepository;
 import com.roms.repository.MenuItemRepository;
 import com.roms.security.UserPrincipal;
-import com.roms.service.impl.MenuContextInvalidator;
 import com.roms.service.impl.MenuExcelServiceImpl;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -37,15 +36,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MenuExcelServiceTest {
     private CategoryRepository categories;
     private MenuItemRepository items;
-    private MenuContextInvalidator invalidator;
     private MenuExcelService service;
     private MockMvc mvc;
 
     @BeforeEach void setUp() {
         categories = mock(CategoryRepository.class);
         items = mock(MenuItemRepository.class);
-        invalidator = mock(MenuContextInvalidator.class);
-        service = new MenuExcelServiceImpl(categories, items, invalidator);
+        service = new MenuExcelServiceImpl(categories, items);
         mvc = MockMvcBuilders.standaloneSetup(new MenuExcelController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         authenticate(UserRole.OWNER);
@@ -78,7 +75,6 @@ class MenuExcelServiceTest {
     private void noWrites() {
         verify(categories, never()).saveAll(any());
         verify(items, never()).saveAll(any());
-        verifyNoInteractions(invalidator);
     }
 
     private MenuExcelDuplicateConfirmation reviewFor(MockMultipartFile upload) {
@@ -114,7 +110,7 @@ class MenuExcelServiceTest {
                 }
             }
         }
-        verifyNoInteractions(categories, items, invalidator);
+        verifyNoInteractions(categories, items);
     }
 
     @Test void importsNewCategoriesAndMapsItemsToPersistedCategory() throws Exception {
@@ -127,7 +123,6 @@ class MenuExcelServiceTest {
                     && value.getPrice().intValueExact() == 55000 && value.getStatus() == MenuItemStatus.AVAILABLE
                     && !value.getIsFeatured();
         }));
-        verify(invalidator).afterCommit();
     }
 
     @Test void newCategoriesAppendAfterMaximumExistingOrderInPhysicalRowOrder() throws Exception {
@@ -507,7 +502,7 @@ class MenuExcelServiceTest {
         assertThatThrownBy(service::preview).isInstanceOf(UnauthorizedException.class);
         assertThatThrownBy(() -> service.importMenu(null)).isInstanceOf(UnauthorizedException.class);
         assertThatThrownBy(() -> service.importMenu(null, "confirmed")).isInstanceOf(UnauthorizedException.class);
-        verifyNoInteractions(categories, items, invalidator);
+        verifyNoInteractions(categories, items);
     }
 
     @Test void malformedAndOversizedUploadsAreRejected() {

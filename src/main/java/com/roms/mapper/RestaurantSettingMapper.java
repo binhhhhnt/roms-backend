@@ -23,6 +23,7 @@ public class RestaurantSettingMapper {
                 .billPaperSize(setting.getBillPaperSize())
                 .readyTicketPrinterName(setting.getReadyTicketPrinterName())
                 .readyTicketPaperSize(setting.getReadyTicketPaperSize())
+                .qrOrderingEnabled(setting.getQrOrderingEnabled())
                 .updatedAt(setting.getUpdatedAt())
                 .build();
     }

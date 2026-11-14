@@ -26,14 +26,14 @@ public interface ServiceSessionRepository extends JpaRepository<ServiceSession, 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ServiceSession s " +
            "JOIN FETCH s.table " +
-           "JOIN FETCH s.openedBy " +
+           "LEFT JOIN FETCH s.openedBy " +
            "LEFT JOIN FETCH s.closedBy " +
            "WHERE s.id = :id")
     Optional<ServiceSession> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT s FROM ServiceSession s " +
            "JOIN FETCH s.table " +
-           "JOIN FETCH s.openedBy " +
+           "LEFT JOIN FETCH s.openedBy " +
            "LEFT JOIN FETCH s.closedBy " +
            "WHERE (:tableId IS NULL OR s.table.id = :tableId) " +
            "AND (:status IS NULL OR s.status = :status)")
@@ -45,7 +45,7 @@ public interface ServiceSessionRepository extends JpaRepository<ServiceSession, 
 
     @Query("SELECT s FROM ServiceSession s " +
            "JOIN FETCH s.table " +
-           "JOIN FETCH s.openedBy " +
+           "LEFT JOIN FETCH s.openedBy " +
            "LEFT JOIN FETCH s.closedBy " +
            "WHERE s.id = :id")
     Optional<ServiceSession> findByIdWithDetails(@Param("id") Long id);

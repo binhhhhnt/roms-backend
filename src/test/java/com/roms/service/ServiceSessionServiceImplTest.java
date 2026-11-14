@@ -11,12 +11,14 @@ import com.roms.entity.ServiceSession;
 import com.roms.entity.TableTransferHistory;
 import com.roms.entity.User;
 import com.roms.enums.OrderStatus;
+import com.roms.enums.QrOrderRequestStatus;
 import com.roms.enums.ServiceSessionStatus;
 import com.roms.enums.UserRole;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.mapper.TableMapper;
 import com.roms.repository.OrderRepository;
+import com.roms.repository.QrOrderRequestRepository;
 import com.roms.repository.RestaurantTableRepository;
 import com.roms.repository.ServiceSessionRepository;
 import com.roms.repository.TableTransferHistoryRepository;
@@ -67,6 +69,9 @@ class ServiceSessionServiceImplTest {
 
         @Mock
         private OrderRepository orderRepository;
+
+        @Mock
+        private QrOrderRequestRepository qrOrderRequestRepository;
 
         @Mock
         private StompEventPublisher stompEventPublisher;
@@ -175,63 +180,6 @@ class ServiceSessionServiceImplTest {
                 }
 
                 @Test
-                @DisplayName("should allow TABLE_ACCOUNT to open session on assigned table")
-                void shouldAllowTableAccountOnOwnTable() {
-                        UserPrincipal tabletPrincipal = UserPrincipal.builder()
-                                        .id(20L)
-                                        .username("tablet_t01")
-                                        .password("encoded")
-                                        .fullName("Tablet T01")
-                                        .role(UserRole.TABLE_ACCOUNT)
-                                        .tableId(1L)
-                                        .sessionId(2L)
-                                        .active(true)
-                                        .build();
-                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                                        tabletPrincipal, null, tabletPrincipal.getAuthorities());
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-
-                        User tabletUser = User.builder().id(20L).username("tablet_t01").role(UserRole.TABLE_ACCOUNT)
-                                        .isActive(true).build();
-
-                        when(tableRepository.findById(1L)).thenReturn(Optional.of(table1));
-                        when(sessionRepository.existsByTableIdAndStatus(1L, ServiceSessionStatus.ACTIVE))
-                                        .thenReturn(false);
-                        when(userRepository.findById(20L)).thenReturn(Optional.of(tabletUser));
-                        when(sessionRepository.save(any(ServiceSession.class))).thenReturn(activeSession);
-                        when(tableMapper.toSessionResponse(activeSession)).thenReturn(sessionResponse);
-
-                        ServiceSessionResponse result = sessionService.openSession(1L);
-
-                        assertThat(result).isNotNull();
-                }
-
-                @Test
-                @DisplayName("should reject TABLE_ACCOUNT opening session on another table")
-                void shouldRejectTableAccountOnDifferentTable() {
-                        UserPrincipal tabletPrincipal = UserPrincipal.builder()
-                                        .id(20L)
-                                        .username("tablet_t01")
-                                        .password("encoded")
-                                        .fullName("Tablet T01")
-                                        .role(UserRole.TABLE_ACCOUNT)
-                                        .tableId(1L)
-                                        .sessionId(2L)
-                                        .active(true)
-                                        .build();
-                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                                        tabletPrincipal, null, tabletPrincipal.getAuthorities());
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-
-                        when(tableRepository.findById(2L)).thenReturn(Optional.of(table2));
-
-                        assertThatThrownBy(() -> sessionService.openSession(2L))
-                                        .isInstanceOf(BusinessRuleException.class)
-                                        .hasMessageContaining(
-                                                        "TABLE_ACCOUNT can only open sessions on their assigned table");
-                }
-
-                @Test
                 @DisplayName("should reject when table is inactive")
                 void shouldRejectWhenTableIsInactive() {
                         table1.setIsActive(false);
@@ -252,19 +200,6 @@ class ServiceSessionServiceImplTest {
                         assertThatThrownBy(() -> sessionService.openSession(1L))
                                         .isInstanceOf(BusinessRuleException.class)
                                         .hasMessageContaining("already has an active service session");
-                }
-
-                @Test
-                @DisplayName("should reject opening session when table account is locked")
-                void shouldRejectWhenTableAccountIsLocked() {
-                        User lockedUser = User.builder().id(30L).username("table_locked").role(UserRole.TABLE_ACCOUNT)
-                                        .isActive(false).build();
-                        when(tableRepository.findById(1L)).thenReturn(Optional.of(table1));
-                        when(userRepository.findByTableId(1L)).thenReturn(Optional.of(lockedUser));
-
-                        assertThatThrownBy(() -> sessionService.openSession(1L))
-                                        .isInstanceOf(BusinessRuleException.class)
-                                        .hasFieldOrPropertyWithValue("code", "TABLE_ACCOUNT_LOCKED");
                 }
 
                 @Test
@@ -326,6 +261,19 @@ class ServiceSessionServiceImplTest {
                         assertThatThrownBy(() -> sessionService.closeSession(100L))
                                         .isInstanceOf(BusinessRuleException.class)
                                         .hasMessageContaining("Bàn đã phát sinh đơn hàng, không thể đóng");
+                }
+
+                @Test
+                @DisplayName("should reject closing session when pending QR orders exist")
+                void shouldRejectWhenPendingQrOrdersExist() {
+                        when(sessionRepository.findByIdWithDetails(100L)).thenReturn(Optional.of(activeSession));
+                        when(qrOrderRequestRepository.existsByServiceSessionIdAndStatus(
+                                        100L, QrOrderRequestStatus.PENDING_CONFIRMATION)).thenReturn(true);
+
+                        assertThatThrownBy(() -> sessionService.closeSession(100L))
+                                        .isInstanceOf(BusinessRuleException.class)
+                                        .extracting(ex -> ((BusinessRuleException) ex).getCode())
+                                        .isEqualTo("PENDING_QR_ORDERS_EXIST");
                 }
 
                 @Test
@@ -414,22 +362,6 @@ class ServiceSessionServiceImplTest {
                         assertThatThrownBy(() -> sessionService.transferTable(100L, request))
                                         .isInstanceOf(BusinessRuleException.class)
                                         .hasMessageContaining("Cannot transfer to inactive table");
-                }
-
-                @Test
-                @DisplayName("should reject transferring when target table account is locked")
-                void shouldRejectWhenTargetTableAccountIsLocked() {
-                        TransferTableRequest request = TransferTableRequest.builder().toTableId(2L).build();
-                        User lockedTargetUser = User.builder().id(31L).username("table_target_locked")
-                                        .role(UserRole.TABLE_ACCOUNT).isActive(false).build();
-
-                        when(sessionRepository.findByIdWithDetails(100L)).thenReturn(Optional.of(activeSession));
-                        when(tableRepository.findById(2L)).thenReturn(Optional.of(table2));
-                        when(userRepository.findByTableId(2L)).thenReturn(Optional.of(lockedTargetUser));
-
-                        assertThatThrownBy(() -> sessionService.transferTable(100L, request))
-                                        .isInstanceOf(BusinessRuleException.class)
-                                        .hasFieldOrPropertyWithValue("code", "TARGET_TABLE_ACCOUNT_LOCKED");
                 }
 
                 @Test

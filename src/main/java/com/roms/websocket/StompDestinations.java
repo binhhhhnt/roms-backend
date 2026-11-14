@@ -27,11 +27,14 @@ public final class StompDestinations {
     public static final String TOPIC_SERVICE_READY_DISHES = "/topic/service/ready-dishes";
     public static final String TOPIC_SERVICE_STAFF_CALLS = "/topic/service/staff-calls";
     public static final String TOPIC_SERVICE_STAFF_CALLS_ACK = "/topic/service/staff-calls-ack";
+    public static final String TOPIC_STAFF_QR_ORDERS = "/topic/staff/qr-orders";
     public static final String TOPIC_MENU = "/topic/menu";
     public static final String TOPIC_SESSION_ORDERS_PATTERN = "^/topic/session/(\\d+)/orders$";
+    public static final String TOPIC_QR_SESSION_PATTERN = "^/topic/qr/session/(\\d+)$";
     public static final String USER_NOTIFICATIONS_QUEUE = "/user/queue/notifications";
 
     private static final Pattern SESSION_ORDERS_REGEX = Pattern.compile(TOPIC_SESSION_ORDERS_PATTERN);
+    private static final Pattern QR_SESSION_REGEX = Pattern.compile(TOPIC_QR_SESSION_PATTERN);
 
     /**
      * Build destination for kitchen orders topic.
@@ -72,6 +75,32 @@ public final class StompDestinations {
             throw new IllegalArgumentException("sessionId must not be null");
         }
         return "/topic/session/" + sessionId + "/orders";
+    }
+
+    public static String staffQrOrders() {
+        return TOPIC_STAFF_QR_ORDERS;
+    }
+
+    public static String qrSession(Long sessionId) {
+        if (sessionId == null) {
+            throw new IllegalArgumentException("sessionId must not be null");
+        }
+        return "/topic/qr/session/" + sessionId;
+    }
+
+    public static Long extractQrSessionId(String destination) {
+        if (destination == null) {
+            return null;
+        }
+        Matcher matcher = QR_SESSION_REGEX.matcher(destination.trim());
+        if (matcher.matches()) {
+            try {
+                return Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -152,27 +181,24 @@ public final class StompDestinations {
             return role == UserRole.SERVICE_STAFF;
         }
 
-        // Service ready dishes topic: service staff
-        if (dest.equals(TOPIC_SERVICE_READY_DISHES) || dest.startsWith("/topic/service/")) {
+        // Service ready dishes & staff QR orders topics: service staff
+        if (dest.equals(TOPIC_SERVICE_READY_DISHES)
+                || dest.startsWith("/topic/service/")
+                || dest.equals(TOPIC_STAFF_QR_ORDERS)
+                || dest.startsWith("/topic/staff/")) {
             return role == UserRole.SERVICE_STAFF;
         }
 
-        // Menu updates topic: owner, kitchen staff, service staff, table account
+        // Menu updates topic: owner, kitchen staff, service staff
         if (dest.equals(TOPIC_MENU) || dest.startsWith("/topic/menu/")) {
             return role == UserRole.OWNER || role == UserRole.KITCHEN_STAFF
-                    || role == UserRole.SERVICE_STAFF || role == UserRole.TABLE_ACCOUNT;
+                    || role == UserRole.SERVICE_STAFF;
         }
 
-        // Session orders topic: service staff or matching table account
+        // Session orders & QR session topics: service staff (owner handled above)
         Long parsedSessionId = extractSessionId(dest);
-        if (parsedSessionId != null) {
-            if (role == UserRole.SERVICE_STAFF) {
-                return true;
-            }
-            if (role == UserRole.TABLE_ACCOUNT) {
-                return userTableId != null && userTableId.equals(sessionTableId);
-            }
-            return false;
+        if (parsedSessionId != null || extractQrSessionId(dest) != null) {
+            return role == UserRole.SERVICE_STAFF;
         }
 
         // User personal notifications queue: any authenticated user

@@ -31,7 +31,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
-    private final MenuContextInvalidator invalidator;
 
     @Override @Transactional
     public CategoryResponse createCategory(CategoryWriteRequest request) {
@@ -39,7 +38,6 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = new Category();
         categoryMapper.updateEntity(request, category);
         Category saved = categoryRepository.save(category);
-        invalidator.afterCommit();
         return categoryMapper.toResponse(saved);
     }
 
@@ -51,28 +49,24 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
         categoryMapper.updateEntity(request, category);
         Category saved = categoryRepository.save(category);
-        invalidator.afterCommit();
         return categoryMapper.toResponse(saved);
     }
 
     @Override
     public PageResponse<CategoryResponse> getCategories(Pageable pageable) {
-        UserRole role = currentRole();
+        currentRole();
         Pageable normalized = normalizePageable(pageable);
-        Page<Category> categories = role == UserRole.TABLE_ACCOUNT
-                ? categoryRepository.findByIsActiveTrue(normalized)
-                : categoryRepository.findAll(normalized);
+        Page<Category> categories = categoryRepository.findAll(normalized);
         return PageResponse.from(categories, categoryMapper::toResponse);
     }
 
     @Override
     public CategoryResponse getCategory(Long id) {
-        UserRole role = currentRole();
+        currentRole();
         if (id == null || id <= 0) {
             throw new ValidationException("Category id must be positive");
         }
         Category category = categoryRepository.findById(id)
-                .filter(value -> role != UserRole.TABLE_ACCOUNT || Boolean.TRUE.equals(value.getIsActive()))
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
         return categoryMapper.toResponse(category);
     }

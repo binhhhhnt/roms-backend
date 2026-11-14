@@ -19,11 +19,17 @@ public class RestaurantTable {
 
     public RestaurantTable(Long id, String tableCode, Integer capacity, String area,
                            Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, tableCode, capacity, area, isActive, null, createdAt, updatedAt);
+    }
+
+    public RestaurantTable(Long id, String tableCode, Integer capacity, String area,
+                           Boolean isActive, String qrToken, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.tableCode = tableCode;
         this.capacity = capacity;
         this.area = area;
         this.isActive = isActive != null ? isActive : true;
+        this.qrToken = qrToken;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -45,6 +51,9 @@ public class RestaurantTable {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "qr_token", nullable = false, unique = true, length = 64)
+    private String qrToken;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -52,4 +61,11 @@ public class RestaurantTable {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void ensureQrToken() {
+        if (this.qrToken == null || this.qrToken.isBlank()) {
+            this.qrToken = java.util.UUID.randomUUID().toString();
+        }
+    }
 }

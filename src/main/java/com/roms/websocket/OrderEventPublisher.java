@@ -61,6 +61,7 @@ public class OrderEventPublisher {
                     .occurredAt(LocalDateTime.now())
                     .build();
             stompEventPublisher.publishAfterCommit(StompDestinations.sessionOrders(sessionId), sessionEvent);
+            stompEventPublisher.publishAfterCommit(StompDestinations.qrSession(sessionId), sessionEvent);
         }
     }
 
@@ -90,6 +91,7 @@ public class OrderEventPublisher {
         stompEventPublisher.publishAfterCommit(StompDestinations.kitchenOrders(), event);
         if (sessionId != null) {
             stompEventPublisher.publishAfterCommit(StompDestinations.sessionOrders(sessionId), event);
+            stompEventPublisher.publishAfterCommit(StompDestinations.qrSession(sessionId), event);
         }
     }
 
@@ -121,6 +123,17 @@ public class OrderEventPublisher {
         stompEventPublisher.publishAfterCommit(StompDestinations.kitchenOrders(), event);
         if (sessionId != null) {
             stompEventPublisher.publishAfterCommit(StompDestinations.sessionOrders(sessionId), event);
+            stompEventPublisher.publishAfterCommit(StompDestinations.qrSession(sessionId), event);
+        }
+
+        if (newStatus == OrderItemStatus.COMPLETED || newStatus == OrderItemStatus.CANCELLED) {
+            ReadyDishesEvent removeEvent = ReadyDishesEvent.builder()
+                    .orderId(parentOrder != null ? parentOrder.getId() : null)
+                    .sessionId(sessionId)
+                    .orderItemId(item.getId())
+                    .status(newStatus.name())
+                    .build();
+            stompEventPublisher.publishAfterCommit(StompDestinations.serviceReadyDishes(), removeEvent);
         }
     }
 
@@ -147,6 +160,7 @@ public class OrderEventPublisher {
                 .menuItemName(item.getMenuItem() != null ? item.getMenuItem().getName() : null)
                 .quantity(item.getQuantity())
                 .note(item.getNote())
+                .status(OrderItemStatus.READY.name())
                 .readyAt(LocalDateTime.now())
                 .build();
 

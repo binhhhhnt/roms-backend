@@ -36,7 +36,7 @@
 
 | ID | Task / Deliverable | Owner | Status | Dependencies / Notes |
 |---|---|---|---|---|
-| BE-007 | Implement categories, menu item CRUD, Cloudinary menu-image integration and tablet menu read APIs | Member 3 | In Review | BE-028; ROMS-019–023, ROMS-025–026; approved category read/write, OWNER menu create/update and image upload/removal implemented. GET menu list/detail includes category, ordered batch-loaded images and live sellability via BE-008; tablet visibility is filtered before pagination. Deletion endpoints implemented for empty categories and unreferenced menu items. |
+| BE-007 | Implement categories, menu item CRUD, Cloudinary menu-image integration and tablet menu read APIs | Member 3 | Done | BE-028; ROMS-019–023, ROMS-025–026; approved category read/write, OWNER menu create/update, image upload/removal, and deletion endpoints (`CatalogDeletionController`) implemented; 75/75 targeted Menu/Catalog unit & WebMvc tests passed on `custom`. |
 | BE-008 | Implement manual menu status changes and recipe/stock-based sellability checks | BINH-DEV | Done | Implemented PATCH /api/menu-items/{id}/status and GET /api/menu-items/{id}/sellability (live PostgreSQL recipe/stock check); 21/21 tests passed |
 | BE-009 | Implement tables and service session APIs, including open/close and history | QUANG | Done | ROMS-011–015, 017–018, 024, 036; full CRUD tables, realtime status, session open/close with order guards, after-commit STOMP SessionStatusChangedEvent |
 | BE-012 | Implement table transfer and transfer-history operations | QUANG | Done | ROMS-016; transfer active session to available active table, audit history in table_transfer_history, after-commit STOMP TableTransferEvent |

@@ -31,30 +31,6 @@ class RefreshTokenServiceTest {
     private UserRepository userRepository;
 
     @Test
-    @DisplayName("TABLE_ACCOUNT policy: Only 1 active session allowed; new session revokes previous session")
-    void shouldRevokePreviousSessionOnTableAccountLogin() {
-        User tableUser = userRepository.findByUsername("table_t01").orElseThrow();
-
-        // 1st login
-        String rawToken1 = TokenHashUtil.generateRandomToken();
-        RefreshToken session1 = refreshTokenService.createSession(tableUser, rawToken1, "tablet-dev-1", 90);
-        assertThat(session1.getRevokedAt()).isNull();
-
-        // 2nd login on another tablet
-        String rawToken2 = TokenHashUtil.generateRandomToken();
-        RefreshToken session2 = refreshTokenService.createSession(tableUser, rawToken2, "tablet-dev-2", 90);
-        assertThat(session2.getRevokedAt()).isNull();
-
-        // Check session 1 was revoked
-        RefreshToken reloadedSession1 = refreshTokenRepository.findById(session1.getId()).orElseThrow();
-        assertThat(reloadedSession1.getRevokedAt()).isNotNull();
-
-        // Active session check
-        assertThat(refreshTokenService.findActiveSession(session1.getId())).isEmpty();
-        assertThat(refreshTokenService.findActiveSession(session2.getId())).isPresent();
-    }
-
-    @Test
     @DisplayName("Staff/Owner policy: Multiple active sessions allowed simultaneously")
     void shouldAllowMultipleSessionsForStaff() {
         User staff = userRepository.findByUsername("service01").orElseThrow();

@@ -42,7 +42,6 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final MenuItemRepository repository;
     private final CategoryRepository categories;
     private final MenuItemMapper mapper;
-    private final MenuContextInvalidator invalidator;
     private final MenuItemImageRepository images;
     private final MenuItemImageMapper imageMapper;
     private final CategoryMapper categoryMapper;
@@ -64,8 +63,8 @@ public class MenuItemServiceImpl implements MenuItemService {
                 throw new ForbiddenException("Role cannot view the requested menu status");
             statuses = EnumSet.of(status);
         }
-        boolean requireBom = (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
-        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT, requireBom,
+        boolean requireBom = (role == UserRole.SERVICE_STAFF);
+        var page = repository.findCatalog(categoryId, statuses, false, requireBom,
                 normalizePageable(pageable));
         if (page.isEmpty())
             return PageResponse.from(page, item -> readResponse(item, List.of(), quantity));
@@ -86,9 +85,7 @@ public class MenuItemServiceImpl implements MenuItemService {
             throw new ValidationException("Menu item id must be positive");
         MenuItem item = repository.findCatalogById(id)
                 .filter(value -> visibleStatuses(role).contains(value.getStatus()))
-                .filter(value -> role != UserRole.TABLE_ACCOUNT
-                        || Boolean.TRUE.equals(value.getCategory().getIsActive()))
-                .filter(value -> !(role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF)
+                .filter(value -> role != UserRole.SERVICE_STAFF
                         || recipeItemRepository.existsByMenuItemId(value.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
         List<MenuItemImageResponse> imageResponses = images.findCatalogImages(List.of(id)).stream()
@@ -109,7 +106,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private Set<MenuItemStatus> visibleStatuses(UserRole role) {
         return switch (role) {
             case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
-            case KITCHEN_STAFF, SERVICE_STAFF, TABLE_ACCOUNT ->
+            case KITCHEN_STAFF, SERVICE_STAFF ->
                 EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         };
     }
@@ -169,7 +166,6 @@ public class MenuItemServiceImpl implements MenuItemService {
 
         mapper.updateEntity(request, item);
         MenuItem saved = repository.save(item);
-        invalidator.afterCommit();
         return mapper.toResponse(saved);
     }
 }

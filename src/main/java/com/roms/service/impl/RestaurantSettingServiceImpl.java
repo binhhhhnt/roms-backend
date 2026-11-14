@@ -61,6 +61,9 @@ public class RestaurantSettingServiceImpl implements RestaurantSettingService {
         if (request.getReadyTicketPaperSize() != null) {
             setting.setReadyTicketPaperSize(request.getReadyTicketPaperSize());
         }
+        if (request.getQrOrderingEnabled() != null) {
+            setting.setQrOrderingEnabled(request.getQrOrderingEnabled());
+        }
 
         RestaurantSetting saved = settingRepository.save(setting);
         log.info("Updated restaurant setting: id={}, vatInclusive={}, billPrinter={}, readyPrinter={}",
@@ -86,6 +89,7 @@ public class RestaurantSettingServiceImpl implements RestaurantSettingService {
                                 .printReadyTicket(true)
                                 .billPaperSize("K80")
                                 .readyTicketPaperSize("K80")
+                                .qrOrderingEnabled(true)
                                 .build()
                 ));
     }

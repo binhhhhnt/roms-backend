@@ -12,7 +12,6 @@ import com.roms.mapper.RecipeItemMapper;
 import com.roms.repository.IngredientRepository;
 import com.roms.repository.MenuItemRepository;
 import com.roms.repository.RecipeItemRepository;
-import com.roms.service.MenuContextCacheService;
 import com.roms.service.RecipeItemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,19 +31,16 @@ public class RecipeItemServiceImpl implements RecipeItemService {
     private final RecipeItemRepository recipeItemRepository;
     private final MenuItemRepository menuItemRepository;
     private final IngredientRepository ingredientRepository;
-    private final MenuContextCacheService menuContextCacheService;
     private final RecipeItemMapper recipeItemMapper;
 
     public RecipeItemServiceImpl(
             RecipeItemRepository recipeItemRepository,
             MenuItemRepository menuItemRepository,
             IngredientRepository ingredientRepository,
-            MenuContextCacheService menuContextCacheService,
             RecipeItemMapper recipeItemMapper) {
         this.recipeItemRepository = recipeItemRepository;
         this.menuItemRepository = menuItemRepository;
         this.ingredientRepository = ingredientRepository;
-        this.menuContextCacheService = menuContextCacheService;
         this.recipeItemMapper = recipeItemMapper;
     }
 
@@ -91,9 +87,6 @@ public class RecipeItemServiceImpl implements RecipeItemService {
         recipeItemRepository.deleteByMenuItemId(menuItemId);
         List<RecipeItem> savedItems = recipeItemRepository.saveAll(newItems);
 
-        // Invalidate Redis Gemini menu context cache
-        menuContextCacheService.invalidateMenuContext();
-
         log.info("Replaced recipe for menuItemId={} with {} items", menuItemId, savedItems.size());
         return recipeItemMapper.toResponse(menuItem, savedItems);
     }
@@ -124,9 +117,6 @@ public class RecipeItemServiceImpl implements RecipeItemService {
                 .build();
         recipeItemRepository.save(item);
 
-        // Invalidate Redis Gemini menu context cache
-        menuContextCacheService.invalidateMenuContext();
-
         List<RecipeItem> items = recipeItemRepository.findByMenuItemId(menuItemId);
         log.info("Added ingredient id={} to recipe of menuItemId={}", request.getIngredientId(), menuItemId);
         return recipeItemMapper.toResponse(menuItem, items);
@@ -148,9 +138,6 @@ public class RecipeItemServiceImpl implements RecipeItemService {
         item.setQuantityRequired(quantityRequired);
         recipeItemRepository.save(item);
 
-        // Invalidate Redis Gemini menu context cache
-        menuContextCacheService.invalidateMenuContext();
-
         List<RecipeItem> items = recipeItemRepository.findByMenuItemId(menuItemId);
         log.info("Updated quantityRequired for ingredient id={} in recipe of menuItemId={}", ingredientId, menuItemId);
         return recipeItemMapper.toResponse(menuItem, items);
@@ -168,9 +155,6 @@ public class RecipeItemServiceImpl implements RecipeItemService {
         }
 
         recipeItemRepository.deleteByMenuItemIdAndIngredientId(menuItemId, ingredientId);
-
-        // Invalidate Redis Gemini menu context cache
-        menuContextCacheService.invalidateMenuContext();
 
         log.info("Deleted ingredient id={} from recipe of menuItemId={}", ingredientId, menuItemId);
     }

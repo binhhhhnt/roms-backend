@@ -168,27 +168,18 @@ class WebSocketAuthChannelInterceptorTest {
     }
 
     @Test
-    @DisplayName("SUBSCRIBE by TABLE_ACCOUNT to foreign session throws AccessDeniedException")
-    void testSubscribe_tableAccount_mismatchedTable_denied() {
-        Long tableId = 3L;
-        Long otherTableId = 9L;
+    @DisplayName("SUBSCRIBE by QR guest to foreign session throws AccessDeniedException")
+    void testSubscribe_qrGuest_mismatchedTable_denied() {
         Long sessionId = 50L;
-
-        UserPrincipal principal = UserPrincipal.builder()
-                .id(2L)
-                .username("table_3")
-                .role(UserRole.TABLE_ACCOUNT)
-                .tableId(tableId)
-                .build();
         UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                new UsernamePasswordAuthenticationToken("qr:token-table-3", null, java.util.List.of());
 
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
-        accessor.setDestination("/topic/session/" + sessionId + "/orders");
+        accessor.setDestination("/topic/qr/session/" + sessionId);
         accessor.setUser(auth);
         Message<?> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        RestaurantTable foreignTable = RestaurantTable.builder().id(otherTableId).tableCode("T-09").build();
+        RestaurantTable foreignTable = RestaurantTable.builder().id(9L).tableCode("T-09").qrToken("token-table-9").build();
         ServiceSession session = ServiceSession.builder().id(sessionId).table(foreignTable).build();
         when(serviceSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 
@@ -198,26 +189,18 @@ class WebSocketAuthChannelInterceptorTest {
     }
 
     @Test
-    @DisplayName("SUBSCRIBE by TABLE_ACCOUNT to own matching session succeeds")
-    void testSubscribe_tableAccount_matchingTable_allowed() {
-        Long tableId = 3L;
+    @DisplayName("SUBSCRIBE by QR guest to own matching session succeeds")
+    void testSubscribe_qrGuest_matchingTable_allowed() {
         Long sessionId = 50L;
-
-        UserPrincipal principal = UserPrincipal.builder()
-                .id(2L)
-                .username("table_3")
-                .role(UserRole.TABLE_ACCOUNT)
-                .tableId(tableId)
-                .build();
         UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                new UsernamePasswordAuthenticationToken("qr:token-table-3", null, java.util.List.of());
 
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
-        accessor.setDestination("/topic/session/" + sessionId + "/orders");
+        accessor.setDestination("/topic/qr/session/" + sessionId);
         accessor.setUser(auth);
         Message<?> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        RestaurantTable ownTable = RestaurantTable.builder().id(tableId).tableCode("T-03").build();
+        RestaurantTable ownTable = RestaurantTable.builder().id(3L).tableCode("T-03").qrToken("token-table-3").build();
         ServiceSession session = ServiceSession.builder().id(sessionId).table(ownTable).build();
         when(serviceSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 

@@ -21,6 +21,7 @@ public class ReadyDishesEvent {
     private String menuItemName;
     private Integer quantity;
     private String note;
+    private String status;
     private LocalDateTime readyAt;
 }
 

@@ -15,15 +15,12 @@ import com.roms.repository.MenuItemRepository;
 import com.roms.repository.RecipeItemRepository;
 import com.roms.security.SecurityUtils;
 import com.roms.service.MenuAvailabilityService;
-import com.roms.service.MenuContextCacheService;
 import com.roms.websocket.StompDestinations;
 import com.roms.websocket.StompEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -39,7 +36,6 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
 
     private final MenuItemRepository menuItemRepository;
     private final RecipeItemRepository recipeItemRepository;
-    private final MenuContextCacheService menuContextCacheService;
     private final StompEventPublisher stompEventPublisher;
 
     @Override
@@ -66,7 +62,7 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
         if (request.getStatus() == MenuItemStatus.AVAILABLE) {
             List<RecipeItem> recipes = recipeItemRepository.findByMenuItemIdWithIngredient(id);
             if (recipes.isEmpty()) {
-                throw new BusinessRuleException("NO_RECIPE", "Không thể mở bán món ăn chưa được thiết lập định lượng nguyên liệu (BOM)");
+                throw new BusinessRuleException("NO_RECIPE", "Cannot resume menu item without a BOM recipe");
             }
             for (RecipeItem recipe : recipes) {
                 Ingredient ingredient = recipe.getIngredient();
@@ -74,9 +70,9 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
                         ? ingredient.getCurrentStock() : BigDecimal.ZERO;
                 boolean isActive = ingredient != null && Boolean.TRUE.equals(ingredient.getIsActive());
                 if (!isActive || stock.compareTo(recipe.getQuantityRequired()) < 0) {
-                    String ingName = ingredient != null ? ingredient.getName() : "nguyên liệu";
+                    String ingName = ingredient != null ? ingredient.getName() : "unknown";
                     throw new BusinessRuleException("INSUFFICIENT_STOCK",
-                            "Không thể mở bán lại: Nguyên liệu [" + ingName + "] trong kho đã hết hoặc không đủ (tồn: " + stock + ")");
+                            "Insufficient stock for ingredient [" + ingName + "] (available: " + stock + ")");
                 }
             }
         }
@@ -85,17 +81,6 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
         MenuItem saved = menuItemRepository.save(menuItem);
 
         // Invalidate Gemini menu context cache in Redis strictly after commit
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    menuContextCacheService.invalidateMenuContext();
-                }
-            });
-        } else {
-            menuContextCacheService.invalidateMenuContext();
-        }
-
         stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_MENU, Map.of(
                 "type", "MENU_STATUS_CHANGED",
                 "menuItemId", saved.getId(),
@@ -228,17 +213,6 @@ public class MenuAvailabilityServiceImpl implements MenuAvailabilityService {
         }
 
         if (anyUpdated) {
-            if (TransactionSynchronizationManager.isSynchronizationActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        menuContextCacheService.invalidateMenuContext();
-                    }
-                });
-            } else {
-                menuContextCacheService.invalidateMenuContext();
-            }
-
             stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_MENU, Map.of(
                     "type", "MENU_AUTO_PAUSED"
             ));

@@ -75,10 +75,7 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Account is inactive");
         }
 
-        boolean isTableAccount = (user.getRole() == UserRole.TABLE_ACCOUNT);
-        int expiryDays = isTableAccount
-                ? jwtProperties.getRefreshTokenTabletExpirationDays()
-                : jwtProperties.getRefreshTokenStaffExpirationDays();
+        int expiryDays = jwtProperties.getRefreshTokenStaffExpirationDays();
         int maxAgeSeconds = expiryDays * 24 * 60 * 60;
 
         String rawRefreshToken = TokenHashUtil.generateRandomToken();
@@ -123,10 +120,7 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Account is inactive");
         }
 
-        boolean isTableAccount = (user.getRole() == UserRole.TABLE_ACCOUNT);
-        int expiryDays = isTableAccount
-                ? jwtProperties.getRefreshTokenTabletExpirationDays()
-                : jwtProperties.getRefreshTokenStaffExpirationDays();
+        int expiryDays = jwtProperties.getRefreshTokenStaffExpirationDays();
         int maxAgeSeconds = expiryDays * 24 * 60 * 60;
 
         String newRawToken = TokenHashUtil.generateRandomToken();

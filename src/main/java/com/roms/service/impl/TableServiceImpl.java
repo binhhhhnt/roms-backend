@@ -2,8 +2,11 @@ package com.roms.service.impl;
 
 import com.roms.common.PageResponse;
 import com.roms.dto.request.CreateTableRequest;
+import com.roms.dto.request.GenerateTableQrRequest;
 import com.roms.dto.request.UpdateTableRequest;
 import com.roms.dto.request.UpdateTableStatusRequest;
+import com.roms.dto.response.GenerateTableQrResponse;
+import com.roms.dto.response.RestaurantSettingResponse;
 import com.roms.dto.response.TableResponse;
 import com.roms.entity.RestaurantTable;
 import com.roms.entity.ServiceSession;
@@ -13,6 +16,7 @@ import com.roms.exception.ResourceNotFoundException;
 import com.roms.mapper.TableMapper;
 import com.roms.repository.RestaurantTableRepository;
 import com.roms.repository.ServiceSessionRepository;
+import com.roms.service.RestaurantSettingService;
 import com.roms.service.TableService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,7 +24,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Service triển khai nghiệp vụ Quản lý Bàn ăn (Restaurant Table).
@@ -38,20 +45,24 @@ public class TableServiceImpl implements TableService {
     private final RestaurantTableRepository tableRepository;
     private final ServiceSessionRepository sessionRepository;
     private final TableMapper tableMapper;
+    private final RestaurantSettingService restaurantSettingService;
 
     /**
      * Khởi tạo TableServiceImpl với các dependency cần thiết.
      *
-     * @param tableRepository   Repository thao tác dữ liệu bảng restaurant_tables
-     * @param sessionRepository Repository truy vấn phiên phục vụ của bàn
-     * @param tableMapper       Mapper chuyển đổi giữa entity và DTO
+     * @param tableRepository          Repository thao tác dữ liệu bảng restaurant_tables
+     * @param sessionRepository        Repository truy vấn phiên phục vụ của bàn
+     * @param tableMapper              Mapper chuyển đổi giữa entity và DTO
+     * @param restaurantSettingService Service cấu hình nhà hàng
      */
     public TableServiceImpl(RestaurantTableRepository tableRepository,
                             ServiceSessionRepository sessionRepository,
-                            TableMapper tableMapper) {
+                            TableMapper tableMapper,
+                            RestaurantSettingService restaurantSettingService) {
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.tableMapper = tableMapper;
+        this.restaurantSettingService = restaurantSettingService;
     }
 
     /**
@@ -227,5 +238,39 @@ public class TableServiceImpl implements TableService {
     @Transactional(readOnly = true)
     public List<String> getDistinctAreas() {
         return tableRepository.findDistinctAreas();
+    }
+
+    @Override
+    @Transactional
+    public GenerateTableQrResponse generateQrTokens(GenerateTableQrRequest request) {
+        Set<Long> uniqueIds = new LinkedHashSet<>(request.getTableIds());
+        List<RestaurantTable> tables = tableRepository.findByIdInOrderByIdAsc(uniqueIds);
+        if (tables.size() != uniqueIds.size()) {
+            throw new ResourceNotFoundException("One or more tables were not found");
+        }
+
+        boolean regenerate = Boolean.TRUE.equals(request.getRegenerate());
+        for (RestaurantTable table : tables) {
+            if (regenerate || table.getQrToken() == null || table.getQrToken().isBlank()) {
+                table.setQrToken(UUID.randomUUID().toString());
+            }
+        }
+        List<RestaurantTable> saved = tableRepository.saveAll(tables);
+        RestaurantSettingResponse settings = restaurantSettingService.getSettings();
+
+        List<GenerateTableQrResponse.TableQrItem> items = saved.stream()
+                .map(t -> GenerateTableQrResponse.TableQrItem.builder()
+                        .tableId(t.getId())
+                        .tableCode(t.getTableCode())
+                        .area(t.getArea())
+                        .qrToken(t.getQrToken())
+                        .build())
+                .toList();
+
+        return GenerateTableQrResponse.builder()
+                .restaurantName(settings.getRestaurantName())
+                .address(settings.getAddress())
+                .tables(items)
+                .build();
     }
 }

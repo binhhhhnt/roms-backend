@@ -27,7 +27,6 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
     private final RecipeItemRepository recipes;
     private final MenuItemImageRepository images;
     private final MenuItemImageService imageService;
-    private final MenuContextInvalidator invalidator;
 
     @Override
     @Transactional
@@ -56,7 +55,6 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
             position++;
         }
         if (!reordered.isEmpty()) categories.saveAll(reordered);
-        invalidator.afterCommit();
     }
 
     @Override
@@ -79,7 +77,6 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
         } catch (DataIntegrityViolationException ex) {
             throw menuItemInUse();
         }
-        invalidator.afterCommit();
     }
 
     private void requireId(Long id) {
@@ -87,10 +84,10 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
     }
 
     private BusinessRuleException categoryInUse() {
-        return new BusinessRuleException("CATEGORY_IN_USE", "Danh mục còn chứa món ăn. Vui lòng chuyển hoặc xóa các món trước, hoặc chọn Tạm ngưng phục vụ.");
+        return new BusinessRuleException("CATEGORY_IN_USE", "Category still contains menu items and cannot be deleted");
     }
 
     private BusinessRuleException menuItemInUse() {
-        return new BusinessRuleException("MENU_ITEM_IN_USE", "Món ăn đã có trong đơn hàng nên không thể xóa. Bạn có thể chuyển món sang Ngừng kinh doanh để giữ lịch sử đơn hàng.");
+        return new BusinessRuleException("MENU_ITEM_IN_USE", "Menu item has existing order references and cannot be deleted");
     }
 }

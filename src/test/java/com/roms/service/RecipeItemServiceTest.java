@@ -45,9 +45,6 @@ class RecipeItemServiceTest {
     @Mock
     private IngredientRepository ingredientRepository;
 
-    @Mock
-    private MenuContextCacheService menuContextCacheService;
-
     @Spy
     private RecipeItemMapper recipeItemMapper = new RecipeItemMapper();
 
@@ -129,7 +126,6 @@ class RecipeItemServiceTest {
 
         assertThat(response.getItems()).hasSize(1);
         verify(recipeItemRepository).save(any(RecipeItem.class));
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -148,7 +144,6 @@ class RecipeItemServiceTest {
                 .hasMessageContaining("already exists in recipe");
 
         verify(recipeItemRepository, never()).save(any());
-        verify(menuContextCacheService, never()).invalidateMenuContext();
     }
 
     @Test
@@ -192,7 +187,6 @@ class RecipeItemServiceTest {
         assertThat(response.getItems()).hasSize(2);
         verify(recipeItemRepository).deleteByMenuItemId(1L);
         verify(recipeItemRepository).saveAll(anyList());
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -227,7 +221,6 @@ class RecipeItemServiceTest {
 
         assertThat(item.getQuantityRequired()).isEqualByComparingTo(new BigDecimal("180.000"));
         verify(recipeItemRepository).save(item);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 
     @Test
@@ -239,6 +232,5 @@ class RecipeItemServiceTest {
         recipeItemService.deleteRecipeItem(1L, 10L);
 
         verify(recipeItemRepository).deleteByMenuItemIdAndIngredientId(1L, 10L);
-        verify(menuContextCacheService).invalidateMenuContext();
     }
 }

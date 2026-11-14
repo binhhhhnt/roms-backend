@@ -11,6 +11,7 @@ import com.roms.entity.ServiceSession;
 import com.roms.entity.TableTransferHistory;
 import com.roms.entity.User;
 import com.roms.enums.OrderStatus;
+import com.roms.enums.QrOrderRequestStatus;
 import com.roms.enums.ServiceSessionStatus;
 import com.roms.enums.UserRole;
 import com.roms.exception.BusinessRuleException;
@@ -18,6 +19,7 @@ import com.roms.exception.ResourceNotFoundException;
 import com.roms.exception.UnauthorizedException;
 import com.roms.mapper.TableMapper;
 import com.roms.repository.OrderRepository;
+import com.roms.repository.QrOrderRequestRepository;
 import com.roms.repository.RestaurantTableRepository;
 import com.roms.repository.ServiceSessionRepository;
 import com.roms.repository.TableTransferHistoryRepository;
@@ -60,6 +62,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
         private final TableTransferHistoryRepository transferHistoryRepository;
         private final UserRepository userRepository;
         private final OrderRepository orderRepository;
+        private final QrOrderRequestRepository qrOrderRequestRepository;
         private final StompEventPublisher stompEventPublisher;
         private final TableMapper tableMapper;
 
@@ -81,6 +84,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                         TableTransferHistoryRepository transferHistoryRepository,
                         UserRepository userRepository,
                         OrderRepository orderRepository,
+                        QrOrderRequestRepository qrOrderRequestRepository,
                         StompEventPublisher stompEventPublisher,
                         TableMapper tableMapper) {
                 this.sessionRepository = sessionRepository;
@@ -88,6 +92,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                 this.transferHistoryRepository = transferHistoryRepository;
                 this.userRepository = userRepository;
                 this.orderRepository = orderRepository;
+                this.qrOrderRequestRepository = qrOrderRequestRepository;
                 this.stompEventPublisher = stompEventPublisher;
                 this.tableMapper = tableMapper;
         }
@@ -131,27 +136,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                                         "TABLE_INACTIVE");
                 }
 
-                // 3.1. Kiểm tra tài khoản máy tính bảng của bàn: nếu tài khoản bàn đang bị khóa
-                // thì không thể mở phiên phục vụ
-                userRepository.findByTableId(tableId).ifPresent(tableUser -> {
-                        if (Boolean.FALSE.equals(tableUser.getIsActive())) {
-                                throw new BusinessRuleException(
-                                                "Không thể mở phiên phục vụ cho bàn có tài khoản máy tính bảng đang bị khóa ("
-                                                                + table.getTableCode() + ").",
-                                                "TABLE_ACCOUNT_LOCKED");
-                        }
-                });
-
-                // 4. Kiểm tra phân quyền: Tablet chỉ được mở phiên tại chính bàn được phân công
-                if (principal.getRole() == UserRole.TABLE_ACCOUNT) {
-                        if (principal.getTableId() == null || !principal.getTableId().equals(tableId)) {
-                                throw new BusinessRuleException(
-                                                "TABLE_ACCOUNT can only open sessions on their assigned table",
-                                                "TABLE_NOT_ASSIGNED");
-                        }
-                }
-
-                // 5. Kiểm tra bàn đã có phiên phục vụ nào đang ACTIVE hay chưa
+                // 4. Kiểm tra bàn đã có phiên phục vụ nào đang ACTIVE hay chưa
                 boolean hasActiveSession = sessionRepository.existsByTableIdAndStatus(tableId,
                                 ServiceSessionStatus.ACTIVE);
                 if (hasActiveSession) {
@@ -233,14 +218,12 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                                         "SESSION_ALREADY_CLOSED");
                 }
 
-                // 4. Tablet chỉ được đóng phiên của chính bàn được phân công
-                if (principal.getRole() == UserRole.TABLE_ACCOUNT) {
-                        if (principal.getTableId() == null
-                                        || !principal.getTableId().equals(session.getTable().getId())) {
-                                throw new BusinessRuleException(
-                                                "TABLE_ACCOUNT can only close sessions on their assigned table",
-                                                "TABLE_NOT_ASSIGNED");
-                        }
+                // 4. Kiểm tra đơn QR đang chờ xác nhận
+                if (qrOrderRequestRepository.existsByServiceSessionIdAndStatus(
+                                sessionId, QrOrderRequestStatus.PENDING_CONFIRMATION)) {
+                        throw new BusinessRuleException(
+                                        "Bàn vẫn còn yêu cầu gọi món QR đang chờ xác nhận. Vui lòng xác nhận hoặc hủy trước khi đóng phiên.",
+                                        "PENDING_QR_ORDERS_EXIST");
                 }
 
                 // 5. Kiểm tra đóng phiên : Chỉ cho phép đóng khi phiên KHÔNG có order nào hoặc

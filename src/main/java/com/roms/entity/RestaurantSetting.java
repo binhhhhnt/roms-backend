@@ -24,6 +24,10 @@ public class RestaurantSetting {
     @Builder.Default
     private Boolean menuPriceIncludesVat = true;
 
+    @Column(name = "qr_ordering_enabled", nullable = false)
+    @Builder.Default
+    private Boolean qrOrderingEnabled = true;
+
     @Column(name = "restaurant_name", length = 255)
     @Builder.Default
     private String restaurantName = "Nhà hàng ROMS";

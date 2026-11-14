@@ -69,7 +69,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.TABLE_ACCOUNT && role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to create orders");
         }
 
@@ -79,14 +79,6 @@ public class OrderServiceImpl implements OrderService {
 
         if (session.getStatus() != ServiceSessionStatus.ACTIVE) {
             throw new BusinessRuleException("SESSION_NOT_ACTIVE", "Service session is not ACTIVE");
-        }
-
-        if (role == UserRole.TABLE_ACCOUNT) {
-            Long userTableId = currentUser.getTableId();
-            Long sessionTableId = session.getTable() != null ? session.getTable().getId() : null;
-            if (userTableId == null || !userTableId.equals(sessionTableId)) {
-                throw new ForbiddenException("Table account cannot place orders for other tables");
-            }
         }
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -262,16 +254,6 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
 
-        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal().orElse(null);
-        if (currentUser != null && currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
-            Long sessionTableId = order.getServiceSession().getTable() != null
-                    ? order.getServiceSession().getTable().getId()
-                    : null;
-            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                throw new ForbiddenException("Cannot view order from other tables");
-            }
-        }
-
         List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(order.getId());
         return mapToOrderResponse(order, items);
     }
@@ -279,36 +261,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrders(Long sessionId, OrderStatus status) {
-        UserPrincipal currentUser = SecurityUtils.getCurrentUserPrincipal().orElse(null);
-        Long targetSessionId;
-
-        if (currentUser != null && currentUser.getRole() == UserRole.TABLE_ACCOUNT) {
-            if (sessionId != null) {
-                final Long sid = sessionId;
-                ServiceSession session = serviceSessionRepository.findById(sid)
-                        .orElseThrow(
-                                () -> new ResourceNotFoundException("Session not found with id: " + sid));
-                Long sessionTableId = session.getTable() != null ? session.getTable().getId() : null;
-                if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                    throw new ForbiddenException("Cannot view orders from other tables");
-                }
-                targetSessionId = sessionId;
-            } else {
-                // If tablet does not supply sessionId, check current ACTIVE session
-                Long tableId = currentUser.getTableId();
-                if (tableId == null) {
-                    return Collections.emptyList();
-                }
-                Optional<ServiceSession> activeSession = serviceSessionRepository.findByTableIdAndStatus(
-                        tableId, ServiceSessionStatus.ACTIVE);
-                if (activeSession.isEmpty()) {
-                    return Collections.emptyList();
-                }
-                targetSessionId = activeSession.get().getId();
-            }
-        } else {
-            targetSessionId = sessionId;
-        }
+        Long targetSessionId = sessionId;
 
         List<Order> orders = orderRepository.findOrdersFiltered(targetSessionId, status);
 
@@ -331,17 +284,8 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.TABLE_ACCOUNT && role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to cancel orders");
-        }
-
-        if (role == UserRole.TABLE_ACCOUNT) {
-            Long sessionTableId = order.getServiceSession().getTable() != null
-                    ? order.getServiceSession().getTable().getId()
-                    : null;
-            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                throw new ForbiddenException("Cannot cancel order from other tables");
-            }
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
@@ -386,17 +330,8 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.TABLE_ACCOUNT && role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to cancel order items");
-        }
-
-        if (role == UserRole.TABLE_ACCOUNT) {
-            Long sessionTableId = item.getOrder().getServiceSession().getTable() != null
-                    ? item.getOrder().getServiceSession().getTable().getId()
-                    : null;
-            if (!Objects.equals(currentUser.getTableId(), sessionTableId)) {
-                throw new ForbiddenException("Cannot cancel item from other tables");
-            }
         }
 
         if (item.getStatus() != OrderItemStatus.PENDING) {

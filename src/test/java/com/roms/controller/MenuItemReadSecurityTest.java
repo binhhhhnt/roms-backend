@@ -61,7 +61,7 @@ class MenuItemReadSecurityTest {
         @Bean MenuItemExcelService menuItemExcelService() { return mock(MenuItemExcelService.class); }
         @Bean MenuItemService menuService(MenuItemRepository menus, MenuItemImageRepository images,
                 MenuAvailabilityService availability, RecipeItemRepository recipeItemRepository) {
-            return new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(), mock(MenuContextInvalidator.class),
+            return new MenuItemServiceImpl(menus, mock(CategoryRepository.class), new MenuItemMapper(),
                     images, new MenuItemImageMapper(), new CategoryMapper(), availability, mock(TaxCategoryRepository.class), recipeItemRepository);
         }
     }
@@ -80,11 +80,10 @@ class MenuItemReadSecurityTest {
     @BeforeEach void setUp() {
         reset(users, sessions, menus, images, recipes, availability);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(SecurityMockMvcConfigurers.springSecurity()).build();
-        user = User.builder().id(1L).username("tablet").role(UserRole.TABLE_ACCOUNT).isActive(true)
-                .table(RestaurantTable.builder().id(3L).build()).build();
+        user = User.builder().id(1L).username("staff").role(UserRole.SERVICE_STAFF).isActive(true).build();
         menu = MenuItem.builder().id(8L).name("Soup").price(new BigDecimal("50000.00")).isFeatured(true).status(MenuItemStatus.AVAILABLE)
                 .category(Category.builder().id(4L).name("Main").isActive(true).displayOrder(1).build()).build();
-        token = tokens.generateAccessToken(1L, UserRole.TABLE_ACCOUNT, 2L);
+        token = tokens.generateAccessToken(1L, UserRole.SERVICE_STAFF, 2L);
     }
     private void activeSession() {
         when(users.findById(1L)).thenReturn(Optional.of(user));
@@ -109,7 +108,7 @@ class MenuItemReadSecurityTest {
     @Test void listBindsPagingCategoryQuantityAndSort() throws Exception {
         activeSession();
         var page = PageRequest.of(1, 5, Sort.by(Sort.Order.desc("price"), Sort.Order.asc("id")));
-        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.AVAILABLE), true, true, page)).thenReturn(new PageImpl<>(List.of(menu), page, 6));
+        when(menus.findCatalog(4L, EnumSet.of(MenuItemStatus.AVAILABLE), false, true, page)).thenReturn(new PageImpl<>(List.of(menu), page, 6));
         when(images.findCatalogImages(List.of(8L))).thenReturn(List.of());
         when(availability.checkSellability(8L, 2)).thenReturn(MenuItemSellabilityResponse.builder().sellable(false).requestedQuantity(2).build());
         mvc.perform(get("/api/menu-items").header("Authorization", "Bearer " + token).param("categoryId", "4")
@@ -150,7 +149,7 @@ class MenuItemReadSecurityTest {
     }
 
     @Test void statusFilterCannotBypassJwtRolePermissions() throws Exception {
-        for (UserRole role : List.of(UserRole.KITCHEN_STAFF, UserRole.SERVICE_STAFF, UserRole.TABLE_ACCOUNT)) {
+        for (UserRole role : List.of(UserRole.KITCHEN_STAFF, UserRole.SERVICE_STAFF)) {
             user.setRole(role);
             activeSession();
             String roleToken = tokens.generateAccessToken(1L, role, 2L);

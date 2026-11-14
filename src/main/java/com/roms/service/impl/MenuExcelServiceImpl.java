@@ -37,7 +37,6 @@ public class MenuExcelServiceImpl implements MenuExcelService {
     private static final List<String> ITEM_COLUMNS = List.of("STT", "Tên món", "Tên danh mục", "Mô tả", "Giá");
     private final CategoryRepository categories;
     private final MenuItemRepository items;
-    private final MenuContextInvalidator invalidator;
 
     @Override
     public MenuExcelPreview preview() {
@@ -287,7 +286,6 @@ public class MenuExcelServiceImpl implements MenuExcelService {
         var newItems = accepted.stream().map(row -> MenuItem.builder().name(row.name()).description(row.description())
                 .category(resolved.get(key(row.category()))).price(row.price()).build()).toList();
         if (!newItems.isEmpty()) items.saveAll(newItems);
-        if (!newCategories.isEmpty() || !newItems.isEmpty()) invalidator.afterCommit();
         return new MenuExcelImportResponse(newCategories.size(), reused, newItems.size(), duplicates.size());
     }
 

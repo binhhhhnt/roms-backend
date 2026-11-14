@@ -22,15 +22,14 @@ class MenuItemImageServiceTest {
     private MenuItemRepository menus;
     private MenuItemImageRepository images;
     private CloudinaryClientAdapter client;
-    private MenuContextCacheService cache;
     private MenuItemImageService service;
     private MenuItem menu;
     private MockMultipartFile file;
 
     @BeforeEach void setUp() {
         menus = mock(MenuItemRepository.class); images = mock(MenuItemImageRepository.class);
-        client = mock(CloudinaryClientAdapter.class); cache = mock(MenuContextCacheService.class);
-        service = new MenuItemImageServiceImpl(menus, images, client, new MenuItemImageMapper(), new MenuContextInvalidator(cache));
+        client = mock(CloudinaryClientAdapter.class);
+        service = new MenuItemImageServiceImpl(menus, images, client, new MenuItemImageMapper());
         menu = MenuItem.builder().id(8L).build();
         file = new MockMultipartFile("file", "food.png", "image/png", new byte[]{(byte)137,80,78,71,13,10,26,10,0});
         TransactionSynchronizationManager.initSynchronization();
@@ -55,16 +54,15 @@ class MenuItemImageServiceTest {
         assertThat(response.getDisplayOrder()).isEqualTo(2);
         assertThat(response.getMenuItemId()).isEqualTo(8L);
         assertThat(response.getImageUrl()).startsWith("https://");
-        verifyNoInteractions(cache);
         TransactionSynchronizationManager.getSynchronizations().forEach(s -> { s.afterCommit(); s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED); });
-        verify(cache, timeout(1000)).invalidateMenuContext(); verify(client, never()).delete(any());
+        verify(client, never()).delete(any());
     }
     @Test void uploadFailureAndRollbackCleanUpDeterministicAsset() {
         prepareUpload();
         when(client.upload(any(), any())).thenThrow(new IllegalStateException("provider failed"));
         assertThatThrownBy(() -> service.uploadImage(8L, file, 0)).isInstanceOf(IllegalStateException.class);
         TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-        verify(client).delete("roms/menu-items/8/images/12"); verifyNoInteractions(cache);
+        verify(client).delete("roms/menu-items/8/images/12");
     }
     @Test void databaseFailureAfterUploadAlsoCleansAssetOnRollback() {
         prepareUpload();
@@ -72,14 +70,13 @@ class MenuItemImageServiceTest {
                 .doThrow(new IllegalStateException("database failed")).when(images).saveAndFlush(any());
         assertThatThrownBy(() -> service.uploadImage(8L, file, 0)).isInstanceOf(IllegalStateException.class);
         TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-        verify(client).delete("roms/menu-items/8/images/12"); verifyNoInteractions(cache);
+        verify(client).delete("roms/menu-items/8/images/12");
     }
     @Test void cleanupFailureDoesNotMaskOriginalRollback() {
         prepareUpload(); service.uploadImage(8L, file, 0);
         doThrow(new IllegalStateException("cleanup outage")).when(client).delete(any());
         assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
                 .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK))).doesNotThrowAnyException();
-        verifyNoInteractions(cache);
     }
     @Test void rejectsEmptyOversizedAndSpoofedFilesBeforeDatabaseOrProvider() throws Exception {
         var invalid = new MockMultipartFile[]{new MockMultipartFile("file", new byte[0]),
@@ -100,7 +97,7 @@ class MenuItemImageServiceTest {
         when(images.findByIdAndMenuItemId(12L, 8L)).thenReturn(Optional.of(MenuItemImage.builder().id(12L).menuItem(menu).build()));
         doThrow(new IllegalStateException("provider outage")).when(client).delete(any());
         assertThatThrownBy(() -> service.deleteImage(8L, 12L)).isInstanceOf(IllegalStateException.class);
-        verify(images, never()).delete(any()); verifyNoInteractions(cache);
+        verify(images, never()).delete(any());
     }
     @Test void deletesProviderBeforeMetadata() {
         when(menus.findByIdForUpdate(8L)).thenReturn(Optional.of(menu));
@@ -111,7 +108,7 @@ class MenuItemImageServiceTest {
         ordered.verify(client).delete("roms/menu-items/8/images/12"); ordered.verify(images).delete(image); ordered.verify(images).flush();
     }
     @Test void nonOwnerCannotUploadOrDelete() {
-        authenticate(UserRole.TABLE_ACCOUNT);
+        authenticate(UserRole.SERVICE_STAFF);
         assertThatThrownBy(() -> service.uploadImage(8L, file, 0)).isInstanceOf(ForbiddenException.class);
         assertThatThrownBy(() -> service.deleteImage(8L, 12L)).isInstanceOf(ForbiddenException.class);
         verifyNoInteractions(menus, images, client);

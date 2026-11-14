@@ -138,9 +138,9 @@ public class PromotionServiceImpl implements PromotionService {
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation while creating promotion code: {}", normalizedCode, ex);
             if (ex.getMessage() != null && ex.getMessage().contains("chk_promotions_period")) {
-                throw new BusinessRuleException("Thời gian hiệu lực của khuyến mãi không hợp lệ", "INVALID_DATE_RANGE");
+                throw new BusinessRuleException("Invalid promotion validity period", "INVALID_DATE_RANGE");
             }
-            throw new BusinessRuleException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại", "PROMOTION_CODE_ALREADY_EXISTS");
+            throw new BusinessRuleException("Promotion code '" + normalizedCode + "' already exists", "PROMOTION_CODE_ALREADY_EXISTS");
         }
     }
 
@@ -178,9 +178,9 @@ public class PromotionServiceImpl implements PromotionService {
         } catch (DataIntegrityViolationException ex) {
             log.warn("Data integrity violation while updating promotion code: {}", normalizedCode, ex);
             if (ex.getMessage() != null && ex.getMessage().contains("chk_promotions_period")) {
-                throw new BusinessRuleException("Thời gian hiệu lực của khuyến mãi không hợp lệ", "INVALID_DATE_RANGE");
+                throw new BusinessRuleException("Invalid promotion validity period", "INVALID_DATE_RANGE");
             }
-            throw new BusinessRuleException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại", "PROMOTION_CODE_ALREADY_EXISTS");
+            throw new BusinessRuleException("Promotion code '" + normalizedCode + "' already exists", "PROMOTION_CODE_ALREADY_EXISTS");
         }
     }
 
@@ -213,13 +213,13 @@ public class PromotionServiceImpl implements PromotionService {
     private void validatePromotionRequest(PromotionWriteRequest request, String normalizedCode, Long excludeId) {
         if (request.getDiscountType() == DiscountType.PERCENT) {
             if (request.getDiscountValue().compareTo(BigDecimal.valueOf(100)) > 0) {
-                throw new BusinessRuleException("Phần trăm giảm giá không được vượt quá 100%", "INVALID_DISCOUNT_PERCENT");
+                throw new BusinessRuleException("Discount percentage cannot exceed 100%", "INVALID_DISCOUNT_PERCENT");
             }
         }
 
         if (request.getStartDate() != null && request.getEndDate() != null) {
             if (request.getEndDate().isBefore(request.getStartDate())) {
-                throw new BusinessRuleException("Ngày kết thúc không được trước ngày bắt đầu", "INVALID_DATE_RANGE");
+                throw new BusinessRuleException("End date cannot be before start date", "INVALID_DATE_RANGE");
             }
         }
 
@@ -228,7 +228,7 @@ public class PromotionServiceImpl implements PromotionService {
                 : promotionRepository.existsByCodeIgnoreCaseAndIsDeletedFalseAndIdNot(normalizedCode, excludeId);
 
         if (exists) {
-            throw new BusinessRuleException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại", "PROMOTION_CODE_ALREADY_EXISTS");
+            throw new BusinessRuleException("Promotion code '" + normalizedCode + "' already exists", "PROMOTION_CODE_ALREADY_EXISTS");
         }
     }
 

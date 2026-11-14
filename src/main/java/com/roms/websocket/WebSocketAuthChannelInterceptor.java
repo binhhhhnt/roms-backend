@@ -78,6 +78,19 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (!StringUtils.hasText(authHeader)) {
+            String qrToken = accessor.getFirstNativeHeader("qrToken");
+            if (StringUtils.hasText(qrToken)) {
+                UsernamePasswordAuthenticationToken qrAuth = new UsernamePasswordAuthenticationToken(
+                        "qr:" + qrToken.trim(), null, java.util.List.of());
+                if (accessor.isMutable()) {
+                    accessor.setUser(qrAuth);
+                    return message;
+                }
+                StompHeaderAccessor newAccessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+                newAccessor.copyHeaders(accessor.getMessageHeaders());
+                newAccessor.setUser(qrAuth);
+                return MessageBuilder.createMessage(message.getPayload(), newAccessor.getMessageHeaders());
+            }
             log.warn("STOMP CONNECT rejected: missing Authorization header");
             throw new AuthenticationCredentialsNotFoundException("Missing Authorization token for STOMP connection");
         }
@@ -124,14 +137,34 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
     private void handleSubscribe(StompHeaderAccessor accessor) {
         Principal user = accessor.getUser();
-        if (!(user instanceof UsernamePasswordAuthenticationToken auth) || !(auth.getPrincipal() instanceof UserPrincipal principal)) {
-            log.warn("STOMP SUBSCRIBE rejected: unauthenticated user");
-            throw new AccessDeniedException("Unauthenticated STOMP subscription");
-        }
-
         String destination = accessor.getDestination();
         if (!StringUtils.hasText(destination)) {
             throw new AccessDeniedException("Destination cannot be empty");
+        }
+
+        if (user instanceof UsernamePasswordAuthenticationToken auth
+                && auth.getPrincipal() instanceof String qrPrincipal
+                && qrPrincipal.startsWith("qr:")) {
+            String qrToken = qrPrincipal.substring(3);
+            String dest = destination.trim();
+            if (StompDestinations.TOPIC_MENU.equals(dest)) {
+                return;
+            }
+            Long qrSessionId = StompDestinations.extractQrSessionId(dest);
+            if (qrSessionId != null) {
+                boolean matchesTable = serviceSessionRepository.findById(qrSessionId)
+                        .map(session -> qrToken.equals(session.getTable().getQrToken()))
+                        .orElse(false);
+                if (matchesTable) {
+                    return;
+                }
+            }
+            throw new AccessDeniedException("Access denied for QR guest destination: " + destination);
+        }
+
+        if (!(user instanceof UsernamePasswordAuthenticationToken auth) || !(auth.getPrincipal() instanceof UserPrincipal principal)) {
+            log.warn("STOMP SUBSCRIBE rejected: unauthenticated user");
+            throw new AccessDeniedException("Unauthenticated STOMP subscription");
         }
 
         Long sessionTableId = null;

@@ -50,6 +50,9 @@ class BillServiceImplTest {
     private OrderItemRepository orderItemRepository;
 
     @Mock
+    private QrOrderRequestRepository qrOrderRequestRepository;
+
+    @Mock
     private PromotionRepository promotionRepository;
 
     @Mock
@@ -204,7 +207,7 @@ class BillServiceImplTest {
 
         assertThatThrownBy(() -> billService.getBillPreview(100L))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("vẫn còn món đang chờ chế biến hoặc chờ bưng");
+                .hasMessageContaining("still has items pending preparation or serving");
     }
 
     @Test

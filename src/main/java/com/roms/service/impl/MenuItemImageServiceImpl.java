@@ -26,7 +26,6 @@ public class MenuItemImageServiceImpl implements MenuItemImageService {
     private final MenuItemImageRepository images;
     private final CloudinaryClientAdapter client;
     private final MenuItemImageMapper mapper;
-    private final MenuContextInvalidator invalidator;
 
     @Override @Transactional
     public MenuItemImageResponse uploadImage(Long menuItemId, MultipartFile file, int displayOrder) {
@@ -50,7 +49,6 @@ public class MenuItemImageServiceImpl implements MenuItemImageService {
         });
         image.setImageUrl(client.upload(bytes, publicId));
         images.saveAndFlush(image);
-        invalidator.afterCommit();
         return mapper.toResponse(image);
     }
 
@@ -64,7 +62,6 @@ public class MenuItemImageServiceImpl implements MenuItemImageService {
         client.delete(publicId(menuItemId, imageId));
         images.delete(image);
         images.flush();
-        invalidator.afterCommit();
     }
 
     private MenuItem lockMenu(Long id) {
