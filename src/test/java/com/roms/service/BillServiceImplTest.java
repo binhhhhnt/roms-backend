@@ -204,7 +204,7 @@ class BillServiceImplTest {
 
         assertThatThrownBy(() -> billService.getBillPreview(100L))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("vẫn còn món đang chờ chế biến hoặc chờ bưng");
+                .hasMessageContaining("still has items pending preparation or serving");
     }
 
     @Test

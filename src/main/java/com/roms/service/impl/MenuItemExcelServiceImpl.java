@@ -119,7 +119,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             return out.toByteArray();
         } catch (Exception e) {
             log.error("Failed to generate menu template Excel", e);
-            throw new BusinessRuleException("EXCEL_GENERATE_ERROR", "Không thể tạo file mẫu Excel thực đơn: " + e.getMessage());
+            throw new BusinessRuleException("EXCEL_GENERATE_ERROR", "Failed to generate menu Excel template: " + e.getMessage());
         }
     }
 
@@ -162,7 +162,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             return out.toByteArray();
         } catch (Exception e) {
             log.error("Failed to export menu items to Excel", e);
-            throw new BusinessRuleException("EXCEL_EXPORT_ERROR", "Không thể xuất file Excel thực đơn: " + e.getMessage());
+            throw new BusinessRuleException("EXCEL_EXPORT_ERROR", "Failed to export menu items Excel file: " + e.getMessage());
         }
     }
 
@@ -170,12 +170,12 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
     @Transactional
     public ExcelImportResultResponse importMenuItems(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessRuleException("INVALID_FILE", "Vui lòng chọn file Excel hợp lệ");
+            throw new BusinessRuleException("INVALID_FILE", "Excel file must not be empty");
         }
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename != null && !originalFilename.endsWith(".xlsx") && !originalFilename.endsWith(".xls")) {
-            throw new BusinessRuleException("INVALID_FILE_FORMAT", "Định dạng file không được hỗ trợ. Vui lòng tải lên file .xlsx hoặc .xls");
+            throw new BusinessRuleException("INVALID_FILE_FORMAT", "Unsupported file format; please upload .xlsx or .xls");
         }
 
         int totalRows = 0;
@@ -186,7 +186,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null) {
-                throw new BusinessRuleException("EMPTY_SHEET", "File Excel không có trang tính nào");
+                throw new BusinessRuleException("EMPTY_SHEET", "Excel workbook has no sheets");
             }
 
             int lastRowNum = sheet.getLastRowNum();
@@ -313,7 +313,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             throw bre;
         } catch (Exception e) {
             log.error("Failed to parse menu items Excel file", e);
-            throw new BusinessRuleException("EXCEL_PARSE_ERROR", "Lỗi đọc file Excel: " + e.getMessage());
+            throw new BusinessRuleException("EXCEL_PARSE_ERROR", "Failed to parse menu items Excel file: " + e.getMessage());
         }
 
         return ExcelImportResultResponse.builder()

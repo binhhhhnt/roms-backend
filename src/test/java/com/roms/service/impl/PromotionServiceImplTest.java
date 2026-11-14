@@ -129,7 +129,7 @@ class PromotionServiceImplTest {
 
         assertThatThrownBy(() -> promotionService.createPromotion(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("đã tồn tại");
+                .hasMessageContaining("already exists");
 
         verify(promotionRepository, never()).save(any());
     }
@@ -145,7 +145,7 @@ class PromotionServiceImplTest {
 
         assertThatThrownBy(() -> promotionService.createPromotion(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("vượt quá 100%");
+                .hasMessageContaining("cannot exceed 100%");
     }
 
     @Test
@@ -161,7 +161,7 @@ class PromotionServiceImplTest {
 
         assertThatThrownBy(() -> promotionService.createPromotion(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("Ngày kết thúc");
+                .hasMessageContaining("End date cannot be before start date");
     }
 
     @Test

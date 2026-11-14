@@ -68,7 +68,7 @@ public class BillServiceImpl implements BillService {
                                                 || i.getStatus() == OrderItemStatus.READY);
                 if (hasUnfinished) {
                         throw new BusinessRuleException(
-                                        "Bàn vẫn còn món đang chờ chế biến hoặc chờ trả đồ. Vui lòng hoàn tất hoặc hủy trước khi tính tiền.",
+                                        "Table still has items pending preparation or serving. Please complete or cancel them before checkout.",
                                         "SESSION_HAS_UNFINISHED_ITEMS");
                 }
 
@@ -196,7 +196,7 @@ public class BillServiceImpl implements BillService {
                 }
 
                 if (billRepository.findByServiceSessionId(sessionId).isPresent()) {
-                        throw new BusinessRuleException("Phiên này đã có hóa đơn thanh toán", "BILL_ALREADY_EXISTS");
+                        throw new BusinessRuleException("Bill already exists for this session", "BILL_ALREADY_EXISTS");
                 }
 
                 List<OrderItem> allItems = orderItemRepository.findAllBySessionIdWithMenuItem(sessionId);
@@ -208,7 +208,7 @@ public class BillServiceImpl implements BillService {
                                                 || i.getStatus() == OrderItemStatus.READY);
                 if (hasUnfinished) {
                         throw new BusinessRuleException(
-                                        "Bàn vẫn còn món đang chờ chế biến hoặc chờ bưng (PENDING/COOKING/READY). Vui lòng hoàn tất hoặc hủy trước khi thanh toán.",
+                                        "Session still has unfinished order items (PENDING/COOKING/READY)",
                                         "SESSION_HAS_UNFINISHED_ITEMS");
                 }
 
@@ -221,7 +221,7 @@ public class BillServiceImpl implements BillService {
                                 .toList();
 
                 if (effectiveOrderItems.isEmpty()) {
-                        throw new BusinessRuleException("Bàn không có món ăn nào để thanh toán", "EMPTY_BILL");
+                        throw new BusinessRuleException("No billable items found in this session", "EMPTY_BILL");
                 }
 
                 // Calculate totals
@@ -273,21 +273,21 @@ public class BillServiceImpl implements BillService {
                         String code = request.getPromotionCode().trim().toUpperCase();
                         appliedPromo = promotionRepository.findByCodeAndIsDeletedFalse(code)
                                         .orElseThrow(() -> new BusinessRuleException(
-                                                        "Mã khuyến mãi không tồn tại: " + code,
+                                                        "Promotion code not found: " + code,
                                                         "INVALID_PROMOTION_CODE"));
 
                         if (!Boolean.TRUE.equals(appliedPromo.getIsActive())) {
-                                throw new BusinessRuleException("Mã khuyến mãi đã bị vô hiệu hóa",
+                                throw new BusinessRuleException("Promotion code is inactive",
                                                 "PROMOTION_INACTIVE");
                         }
 
                         LocalDate today = LocalDate.now();
                         if (appliedPromo.getStartDate() != null && today.isBefore(appliedPromo.getStartDate())) {
-                                throw new BusinessRuleException("Mã khuyến mãi chưa đến ngày bắt đầu",
+                                throw new BusinessRuleException("Promotion code has not started yet",
                                                 "PROMOTION_NOT_STARTED");
                         }
                         if (appliedPromo.getEndDate() != null && today.isAfter(appliedPromo.getEndDate())) {
-                                throw new BusinessRuleException("Mã khuyến mãi đã hết hạn", "PROMOTION_EXPIRED");
+                                throw new BusinessRuleException("Promotion code has expired", "PROMOTION_EXPIRED");
                         }
 
                         if (appliedPromo.getMaxUses() != null) {
@@ -295,11 +295,11 @@ public class BillServiceImpl implements BillService {
                                 // limited promotions
                                 appliedPromo = promotionRepository.findByIdForUpdate(appliedPromo.getId())
                                                 .orElseThrow(() -> new BusinessRuleException(
-                                                                "Mã khuyến mãi không tồn tại",
+                                                                "Promotion code not found",
                                                                 "INVALID_PROMOTION_CODE"));
                                 long usedCount = promotionRepository.countUsedBills(appliedPromo.getId());
                                 if (usedCount >= appliedPromo.getMaxUses()) {
-                                        throw new BusinessRuleException("Mã khuyến mãi đã hết lượt sử dụng",
+                                        throw new BusinessRuleException("Promotion code has reached maximum uses",
                                                         "PROMOTION_MAX_USES_REACHED");
                                 }
                         }
@@ -309,7 +309,7 @@ public class BillServiceImpl implements BillService {
                                                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
                                 if (discountAmount.compareTo(amountBeforeDiscount) > 0) {
                                         discountAmount = amountBeforeDiscount;
-                                }
+                                 }
                         } else if (appliedPromo.getDiscountType() == DiscountType.FIXED_AMOUNT) {
                                 discountAmount = appliedPromo.getDiscountValue().min(amountBeforeDiscount);
                         }
@@ -319,7 +319,7 @@ public class BillServiceImpl implements BillService {
 
                 // Validate Payments
                 if (request.getPayments() == null || request.getPayments().isEmpty()) {
-                        throw new BusinessRuleException("Bắt buộc phải chọn phương thức thanh toán",
+                        throw new BusinessRuleException("Payment method is required",
                                         "PAYMENT_REQUIRED");
                 }
 
