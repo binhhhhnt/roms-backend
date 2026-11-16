@@ -91,9 +91,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             ex2.createCell(6).setCellValue("KHÔNG");
             ex2.createCell(7).setCellValue("CÓ");
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
 
             // Data Validation: Dropdown list for Category (Column 1)
             List<Category> categories = categoryRepository.findAll();
@@ -160,9 +158,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 row.createCell(7).setCellValue(Boolean.TRUE.equals(item.getIsDirectSale()) ? "CÓ" : "KHÔNG");
             }
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
 
             addStatusDropdownValidation(sheet, Math.max(1000, rowIdx + 200));
 
@@ -330,6 +326,24 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 .errorCount(errors.size())
                 .errors(errors)
                 .build();
+    }
+
+    private void autoFitColumns(Sheet sheet, int columnCount) {
+        DataFormatter formatter = new DataFormatter();
+        for (int col = 0; col < columnCount; col++) {
+            int maxLen = 12;
+            for (Row row : sheet) {
+                Cell cell = row.getCell(col);
+                if (cell != null) {
+                    int len = formatter.formatCellValue(cell).length();
+                    if (len > maxLen) {
+                        maxLen = len;
+                    }
+                }
+            }
+            int widthChars = Math.min(maxLen + 5, 50);
+            sheet.setColumnWidth(col, widthChars * 256);
+        }
     }
 
     private void addStatusDropdownValidation(Sheet sheet, int lastRow) {
