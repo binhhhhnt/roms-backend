@@ -65,6 +65,9 @@ class OrderServiceImplTest {
     private ServiceSessionRepository serviceSessionRepository;
 
     @Mock
+    private BillRepository billRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -725,10 +728,11 @@ class OrderServiceImplTest {
                 .quantityRequired(new BigDecimal("1.000"))
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
         when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyCollection())).thenReturn(List.of(recipe));
-        when(ingredientRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(beerCan));
+        when(ingredientRepository.findAllByIdInForUpdate(List.of(501L))).thenReturn(List.of(beerCan));
         when(userRepository.findById(any())).thenReturn(Optional.of(User.builder().id(2L).username("waiter1").build()));
         when(orderItemRepository.findDirectSaleItemsBySessionId(100L)).thenReturn(List.of(item));
         when(serviceSessionRepository.existsById(100L)).thenReturn(true);
@@ -743,11 +747,138 @@ class OrderServiceImplTest {
         assertThat(item.getReturnedQuantity()).isEqualTo(3);
         assertThat(beerCan.getCurrentStock()).isEqualByComparingTo(new BigDecimal("23.000")); // 20 + 3
 
-        verify(stockMovementRepository).save(argThat(m ->
-                m.getMovementType() == StockMovementType.ORDER_RETURN &&
-                m.getQuantityChange().compareTo(new BigDecimal("3.000")) == 0 &&
-                m.getNote().contains("Trả đồ Đơn #901 (Bia Heineken lon x3)")
-        ));
+        verify(stockMovementRepository).saveAll(argThat(movements -> {
+            var list = (List<StockMovement>) movements;
+            return list.size() == 1 &&
+                    list.get(0).getMovementType() == StockMovementType.ORDER_RETURN &&
+                    list.get(0).getQuantityChange().compareTo(new BigDecimal("3.000")) == 0 &&
+                    list.get(0).getNote().contains("Trả đồ Đơn #901 (Bia Heineken lon x3)");
+        }));
+    }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: decreasing returned quantity deducts stock and records negative ORDER_RETURN")
+    void returnSessionDirectSaleItems_DecreaseReturnedQuantity_Success() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        MenuItem beer = MenuItem.builder()
+                .id(101L)
+                .name("Bia Heineken lon")
+                .price(new BigDecimal("30000.00"))
+                .isDirectSale(true)
+                .build();
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.COMPLETED)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(beer)
+                .quantity(10)
+                .returnedQuantity(5)
+                .unitPrice(new BigDecimal("30000.00"))
+                .status(OrderItemStatus.COMPLETED)
+                .build();
+
+        Ingredient beerCan = Ingredient.builder()
+                .id(501L)
+                .name("Lon bia Heineken")
+                .currentStock(new BigDecimal("25.000"))
+                .unit("lon")
+                .build();
+
+        RecipeItem recipe = RecipeItem.builder()
+                .id(601L)
+                .menuItem(beer)
+                .ingredient(beerCan)
+                .quantityRequired(new BigDecimal("1.000"))
+                .build();
+
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
+        when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
+        when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyCollection())).thenReturn(List.of(recipe));
+        when(ingredientRepository.findAllByIdInForUpdate(List.of(501L))).thenReturn(List.of(beerCan));
+        when(userRepository.findById(any())).thenReturn(Optional.of(User.builder().id(2L).username("waiter1").build()));
+        when(orderItemRepository.findDirectSaleItemsBySessionId(100L)).thenReturn(List.of(item));
+        when(serviceSessionRepository.existsById(100L)).thenReturn(true);
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 2)))
+                .build();
+
+        orderService.returnSessionDirectSaleItems(100L, returnReq);
+
+        assertThat(item.getReturnedQuantity()).isEqualTo(2);
+        assertThat(beerCan.getCurrentStock()).isEqualByComparingTo(new BigDecimal("22.000")); // 25 - 3
+
+        verify(stockMovementRepository).saveAll(argThat(movements -> {
+            var list = (List<StockMovement>) movements;
+            return list.size() == 1 &&
+                    list.get(0).getMovementType() == StockMovementType.ORDER_RETURN &&
+                    list.get(0).getQuantityChange().compareTo(new BigDecimal("-3.000")) == 0 &&
+                    list.get(0).getNote().contains("Điều chỉnh giảm trả đồ Đơn #901 (Bia Heineken lon -3)");
+        }));
+    }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: throws error when item is PENDING (not COMPLETED)")
+    void returnSessionDirectSaleItems_PendingItem_ThrowsException() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        MenuItem beer = MenuItem.builder()
+                .id(101L)
+                .name("Bia Heineken lon")
+                .isDirectSale(true)
+                .build();
+
+        Order order = Order.builder()
+                .id(901L)
+                .serviceSession(session1)
+                .status(OrderStatus.PENDING)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(801L)
+                .order(order)
+                .menuItem(beer)
+                .quantity(10)
+                .returnedQuantity(0)
+                .status(OrderItemStatus.PENDING)
+                .build();
+
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
+        when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 2)))
+                .build();
+
+        assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("must be COMPLETED before returning");
+    }
+
+    @Test
+    @DisplayName("returnSessionDirectSaleItems: throws error when bill already exists for session")
+    void returnSessionDirectSaleItems_BillExists_ThrowsException() {
+        authenticate(UserRole.SERVICE_STAFF, null);
+
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(true);
+
+        var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 2)))
+                .build();
+
+        assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("bill already exists");
     }
 
     @Test
@@ -776,16 +907,17 @@ class OrderServiceImplTest {
                 .status(OrderItemStatus.COMPLETED)
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
 
         var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
-                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 3))) // 8 + 3 = 11 > 10
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 11))) // 11 > 10
                 .build();
 
         assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("cannot exceed ordered quantity");
+                .hasMessageContaining("must be between 0 and ordered quantity");
     }
 
     @Test
@@ -814,7 +946,8 @@ class OrderServiceImplTest {
                 .status(OrderItemStatus.COMPLETED)
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(802L))).thenReturn(List.of(item));
 
         var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
