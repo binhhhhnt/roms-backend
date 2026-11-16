@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface MenuItemService {
     PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, MenuItemStatus status, int quantity, Pageable pageable);
+    PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, MenuItemStatus status, int quantity, boolean forOrder, Pageable pageable);
     MenuItemReadResponse getMenuItem(Long id, int quantity);
     MenuItemResponse createMenuItem(MenuItemWriteRequest request);
     MenuItemResponse updateMenuItem(Long id, MenuItemWriteRequest request);
