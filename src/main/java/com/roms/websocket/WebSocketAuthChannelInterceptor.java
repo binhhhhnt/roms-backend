@@ -152,7 +152,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             }
             Long qrSessionId = StompDestinations.extractQrSessionId(dest);
             if (qrSessionId != null) {
-                boolean matchesTable = serviceSessionRepository.findById(qrSessionId)
+                boolean matchesTable = serviceSessionRepository.findByIdWithDetails(qrSessionId)
                         .map(session -> qrToken.equals(session.getTable().getQrToken()))
                         .orElse(false);
                 if (matchesTable) {

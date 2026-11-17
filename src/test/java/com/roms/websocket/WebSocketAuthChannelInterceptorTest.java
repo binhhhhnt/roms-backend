@@ -181,7 +181,7 @@ class WebSocketAuthChannelInterceptorTest {
 
         RestaurantTable foreignTable = RestaurantTable.builder().id(9L).tableCode("T-09").qrToken("token-table-9").build();
         ServiceSession session = ServiceSession.builder().id(sessionId).table(foreignTable).build();
-        when(serviceSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(serviceSessionRepository.findByIdWithDetails(sessionId)).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> interceptor.preSend(message, messageChannel))
                 .isInstanceOf(AccessDeniedException.class)
@@ -202,7 +202,7 @@ class WebSocketAuthChannelInterceptorTest {
 
         RestaurantTable ownTable = RestaurantTable.builder().id(3L).tableCode("T-03").qrToken("token-table-3").build();
         ServiceSession session = ServiceSession.builder().id(sessionId).table(ownTable).build();
-        when(serviceSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(serviceSessionRepository.findByIdWithDetails(sessionId)).thenReturn(Optional.of(session));
 
         Message<?> result = interceptor.preSend(message, messageChannel);
         assertThat(result).isNotNull();
