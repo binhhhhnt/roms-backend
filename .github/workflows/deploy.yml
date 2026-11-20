@@ -54,9 +54,9 @@ jobs:
       - name: Sync compose & nginx config to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USER }}
+          key: ${{ secrets.PROD_VPS_SSH_KEY }}
           source: "deploy/docker-compose.yml,deploy/nginx,deploy/scripts"
           target: "roms"   # relative to the SSH user's home -> ~/roms
           strip_components: 1
@@ -69,9 +69,9 @@ jobs:
           APP_IMAGE: ${{ needs.build.outputs.image }}
           APP_TAG: ${{ github.sha }}
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USER }}
+          key: ${{ secrets.PROD_VPS_SSH_KEY }}
           envs: GHCR_TOKEN,GHCR_USER,APP_IMAGE,APP_TAG
           script: |
             set -e
