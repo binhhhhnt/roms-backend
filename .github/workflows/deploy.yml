@@ -37,7 +37,7 @@ jobs:
           platforms: linux/amd64   # t3.small = x86_64
           push: true
           tags: |
-            ${{ steps.vars.outputs.image }}:latest
+            ${{ steps.vars.outputs.image }}:${{ github.ref_name }}-latest
             ${{ steps.vars.outputs.image }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -79,6 +79,6 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             export APP_IMAGE APP_TAG
             docker compose pull app
-            docker compose up -d --remove-orphans
+            docker compose up -d --wait --wait-timeout 180 --remove-orphans
             docker logout ghcr.io
             docker image prune -f
