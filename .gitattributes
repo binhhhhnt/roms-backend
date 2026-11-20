@@ -4,3 +4,4 @@
 deploy/nginx/** text eol=lf
 deploy/docker-compose.yml text eol=lf
 Dockerfile text eol=lf
+*.sql text eol=lf
