@@ -63,9 +63,7 @@ public class IngredientExcelServiceImpl implements IngredientExcelService {
             ex2.createCell(2).setCellValue(5.0);
             ex2.createCell(3).setCellValue(1.0);
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
 
             workbook.write(out);
             return out.toByteArray();
@@ -101,9 +99,7 @@ public class IngredientExcelServiceImpl implements IngredientExcelService {
                 row.createCell(3).setCellValue(ing.getMinimumStock() != null ? ing.getMinimumStock().doubleValue() : 0.0);
             }
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
 
             workbook.write(out);
             return out.toByteArray();
@@ -223,6 +219,24 @@ public class IngredientExcelServiceImpl implements IngredientExcelService {
                 .errorCount(errors.size())
                 .errors(errors)
                 .build();
+    }
+
+    private void autoFitColumns(Sheet sheet, int columnCount) {
+        DataFormatter formatter = new DataFormatter();
+        for (int col = 0; col < columnCount; col++) {
+            int maxLen = 12;
+            for (Row row : sheet) {
+                Cell cell = row.getCell(col);
+                if (cell != null) {
+                    int len = formatter.formatCellValue(cell).length();
+                    if (len > maxLen) {
+                        maxLen = len;
+                    }
+                }
+            }
+            int widthChars = Math.min(maxLen + 5, 50);
+            sheet.setColumnWidth(col, widthChars * 256);
+        }
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {

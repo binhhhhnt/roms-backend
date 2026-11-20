@@ -17,6 +17,8 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @EntityGraph(attributePaths = {"items", "payments", "promotion", "createdBy", "serviceSession"})
     Optional<Bill> findByServiceSessionId(Long serviceSessionId);
 
+    boolean existsByServiceSessionId(Long serviceSessionId);
+
     @EntityGraph(attributePaths = {"items", "payments", "promotion", "createdBy", "serviceSession"})
     Optional<Bill> findByBillCode(String billCode);
 

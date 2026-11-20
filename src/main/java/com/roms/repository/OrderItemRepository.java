@@ -46,7 +46,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
            "LEFT JOIN FETCH oi.returnedBy rb " +
            "WHERE o.serviceSession.id = :sessionId " +
            "AND mi.isDirectSale = true " +
-           "AND oi.status != com.roms.enums.OrderItemStatus.CANCELLED " +
+           "AND oi.status = com.roms.enums.OrderItemStatus.COMPLETED " +
            "ORDER BY oi.id ASC")
     List<OrderItem> findDirectSaleItemsBySessionId(@Param("sessionId") Long sessionId);
 

@@ -36,6 +36,10 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
     private final CategoryRepository categoryRepository;
     private final TaxCategoryService taxCategoryService;
 
+    private static final String STATUS_DISCONTINUED_VI = "Ngừng kinh doanh";
+    private static final String STATUS_AVAILABLE_VI = "Đang kinh doanh";
+    private static final String STATUS_TEMP_UNAVAILABLE_VI = "Tạm ngưng phục vụ";
+
     private static final String[] HEADERS = {
             "Tên món (*)",
             "Tên danh mục (*)",
@@ -72,7 +76,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             ex1.createCell(2).setCellValue(85000);
             ex1.createCell(3).setCellValue(8.00);
             ex1.createCell(4).setCellValue("Phở bò tái nạm bắp hoa");
-            ex1.createCell(5).setCellValue("AVAILABLE");
+            ex1.createCell(5).setCellValue(STATUS_DISCONTINUED_VI);
             ex1.createCell(6).setCellValue("CÓ");
             ex1.createCell(7).setCellValue("KHÔNG");
 
@@ -83,13 +87,11 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             ex2.createCell(2).setCellValue(30000);
             ex2.createCell(3).setCellValue(8.00);
             ex2.createCell(4).setCellValue("Bia lon 330ml ướp lạnh");
-            ex2.createCell(5).setCellValue("AVAILABLE");
+            ex2.createCell(5).setCellValue(STATUS_DISCONTINUED_VI);
             ex2.createCell(6).setCellValue("KHÔNG");
             ex2.createCell(7).setCellValue("CÓ");
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
 
             // Data Validation: Dropdown list for Category (Column 1)
             List<Category> categories = categoryRepository.findAll();
@@ -114,6 +116,8 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                     sheet.addValidationData(validation);
                 }
             }
+
+            addStatusDropdownValidation(sheet, 1000);
 
             workbook.write(out);
             return out.toByteArray();
@@ -149,14 +153,14 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 row.createCell(3).setCellValue(item.getTaxCategory() != null && item.getTaxCategory().getRate() != null
                         ? item.getTaxCategory().getRate().doubleValue() : 8.00);
                 row.createCell(4).setCellValue(item.getDescription() != null ? item.getDescription() : "");
-                row.createCell(5).setCellValue(item.getStatus() != null ? item.getStatus().name() : MenuItemStatus.AVAILABLE.name());
+                row.createCell(5).setCellValue(toVietnameseStatus(item.getStatus()));
                 row.createCell(6).setCellValue(Boolean.TRUE.equals(item.getIsFeatured()) ? "CÓ" : "KHÔNG");
                 row.createCell(7).setCellValue(Boolean.TRUE.equals(item.getIsDirectSale()) ? "CÓ" : "KHÔNG");
             }
 
-            for (int i = 0; i < HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            autoFitColumns(sheet, HEADERS.length);
+
+            addStatusDropdownValidation(sheet, Math.max(1000, rowIdx + 200));
 
             workbook.write(out);
             return out.toByteArray();
@@ -236,15 +240,14 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                     // 5. Mô tả
                     String description = getCellStringValue(row.getCell(4));
 
-                    // 6. Trạng thái
+                    // 6. Trạng thái (Mặc định: Ngừng kinh doanh - DISCONTINUED)
                     String statusStr = getCellStringValue(row.getCell(5));
-                    MenuItemStatus status = MenuItemStatus.AVAILABLE;
-                    if (statusStr != null && !statusStr.isBlank()) {
-                        try {
-                            status = MenuItemStatus.valueOf(statusStr.trim().toUpperCase());
-                        } catch (IllegalArgumentException ex) {
-                            status = MenuItemStatus.AVAILABLE;
-                        }
+                    MenuItemStatus status;
+                    try {
+                        status = parseMenuItemStatus(statusStr);
+                    } catch (IllegalArgumentException ex) {
+                        errors.add("Dòng " + displayRowNumber + ": " + ex.getMessage());
+                        continue;
                     }
 
                     // 7. Món nổi bật
@@ -323,6 +326,63 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                 .errorCount(errors.size())
                 .errors(errors)
                 .build();
+    }
+
+    private void autoFitColumns(Sheet sheet, int columnCount) {
+        DataFormatter formatter = new DataFormatter();
+        for (int col = 0; col < columnCount; col++) {
+            int maxLen = 12;
+            for (Row row : sheet) {
+                Cell cell = row.getCell(col);
+                if (cell != null) {
+                    int len = formatter.formatCellValue(cell).length();
+                    if (len > maxLen) {
+                        maxLen = len;
+                    }
+                }
+            }
+            int widthChars = Math.min(maxLen + 5, 50);
+            sheet.setColumnWidth(col, widthChars * 256);
+        }
+    }
+
+    private void addStatusDropdownValidation(Sheet sheet, int lastRow) {
+        DataValidationHelper validationHelper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = validationHelper.createExplicitListConstraint(
+                new String[]{STATUS_DISCONTINUED_VI, STATUS_AVAILABLE_VI, STATUS_TEMP_UNAVAILABLE_VI});
+        CellRangeAddressList addressList = new CellRangeAddressList(1, lastRow, 5, 5);
+        DataValidation validation = validationHelper.createValidation(constraint, addressList);
+        validation.setSuppressDropDownArrow(true);
+        validation.setShowErrorBox(true);
+        validation.createErrorBox(
+                "Trạng thái không hợp lệ",
+                "Vui lòng chọn một trong các trạng thái: Ngừng kinh doanh, Đang kinh doanh, Tạm ngưng phục vụ.");
+        sheet.addValidationData(validation);
+    }
+
+    private String toVietnameseStatus(MenuItemStatus status) {
+        if (status == null) {
+            return STATUS_DISCONTINUED_VI;
+        }
+        return switch (status) {
+            case AVAILABLE -> STATUS_AVAILABLE_VI;
+            case TEMPORARILY_UNAVAILABLE -> STATUS_TEMP_UNAVAILABLE_VI;
+            case DISCONTINUED -> STATUS_DISCONTINUED_VI;
+        };
+    }
+
+    private MenuItemStatus parseMenuItemStatus(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return MenuItemStatus.DISCONTINUED;
+        }
+        String clean = raw.trim().toUpperCase();
+        return switch (clean) {
+            case "NGỪNG KINH DOANH", "NGUNG KINH DOANH", "DISCONTINUED" -> MenuItemStatus.DISCONTINUED;
+            case "ĐANG KINH DOANH", "DANG KINH DOANH", "ĐANG PHỤC VỤ", "DANG PHUC VU", "AVAILABLE" -> MenuItemStatus.AVAILABLE;
+            case "TẠM NGƯNG PHỤC VỤ", "TAM NGUNG PHUC VU", "TẠM NGƯNG", "TAM NGUNG", "TEMPORARILY_UNAVAILABLE" -> MenuItemStatus.TEMPORARILY_UNAVAILABLE;
+            default -> throw new IllegalArgumentException(
+                    "Trạng thái '" + raw.trim() + "' không hợp lệ (chỉ nhận: Ngừng kinh doanh, Đang kinh doanh, Tạm ngưng phục vụ)");
+        };
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {

@@ -54,17 +54,26 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Transactional(readOnly = true)
     public PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, MenuItemStatus status, int quantity,
             Pageable pageable) {
+        return getMenuItems(categoryId, status, quantity, false, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<MenuItemReadResponse> getMenuItems(Long categoryId, MenuItemStatus status, int quantity,
+            boolean forOrder, Pageable pageable) {
         UserRole role = currentRole();
         requireQuantity(quantity);
         if (categoryId != null && categoryId <= 0)
             throw new ValidationException("Category id must be positive");
-        Set<MenuItemStatus> statuses = visibleStatuses(role);
+        Set<MenuItemStatus> statuses = forOrder
+                ? EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE)
+                : visibleStatuses(role);
         if (status != null) {
             if (!statuses.contains(status))
                 throw new ForbiddenException("Role cannot view the requested menu status");
             statuses = EnumSet.of(status);
         }
-        boolean requireBom = (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
+        boolean requireBom = forOrder || (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
         var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT, requireBom,
                 normalizePageable(pageable));
         if (page.isEmpty())
