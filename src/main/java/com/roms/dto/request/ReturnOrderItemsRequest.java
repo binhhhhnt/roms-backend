@@ -21,8 +21,6 @@ public class ReturnOrderItemsRequest {
     @Valid
     private List<ItemReturnDto> items;
 
-    private String note;
-
     @Data
     @Builder
     @NoArgsConstructor
@@ -32,7 +30,7 @@ public class ReturnOrderItemsRequest {
         private Long orderItemId;
 
         @NotNull(message = "Return quantity is required")
-        @Min(value = 1, message = "Return quantity must be at least 1")
+        @Min(value = 0, message = "Return quantity must be at least 0")
         private Integer returnQuantity;
     }
 }

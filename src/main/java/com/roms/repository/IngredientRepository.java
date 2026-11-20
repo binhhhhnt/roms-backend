@@ -37,6 +37,10 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     Optional<Ingredient> findByIdForUpdate(@Param("id") Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Ingredient i WHERE i.id IN :ids ORDER BY i.id ASC")
+    List<Ingredient> findAllByIdInForUpdate(@Param("ids") List<Long> ids);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Ingredient i WHERE i.id = :id")
     Optional<Ingredient> findByIdWithPessimisticLock(@Param("id") Long id);
 
