@@ -1,6 +1,7 @@
 package com.roms.service.impl;
 
 import com.roms.entity.Category;
+import com.roms.enums.MenuItemStatus;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.exception.ValidationException;
@@ -38,12 +39,18 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
         var ordered = categories.findAllForUpdateInDisplayOrder();
         var category = ordered.stream().filter(value -> id.equals(value.getId())).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-        if (menus.existsByCategoryId(id)) throw categoryInUse();
-        try {
-            categories.delete(category);
-            categories.flush();
-        } catch (DataIntegrityViolationException ex) {
-            throw categoryInUse();
+        if (menus.existsByCategoryIdAndIsDeletedFalse(id)) throw categoryInUse();
+        if (menus.existsByCategoryId(id)) {
+            category.setIsDeleted(true);
+            category.setIsActive(false);
+            categories.save(category);
+        } else {
+            try {
+                categories.delete(category);
+                categories.flush();
+            } catch (DataIntegrityViolationException ex) {
+                throw categoryInUse();
+            }
         }
         var reordered = new ArrayList<Category>();
         int position = 1;
@@ -66,7 +73,13 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
         requireId(id);
         var item = menus.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
-        if (orderItems.existsByMenuItemId(id)) throw menuItemInUse();
+        if (orderItems.existsByMenuItemId(id)) {
+            item.setIsDeleted(true);
+            item.setStatus(MenuItemStatus.DISCONTINUED);
+            menus.save(item);
+            invalidator.afterCommit();
+            return;
+        }
         // Reuse the existing image lifecycle, including Cloudinary cleanup and error handling.
         for (var image : images.findCatalogImages(List.of(id))) {
             imageService.deleteImage(id, image.getId());
@@ -77,7 +90,9 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
             menus.delete(item);
             menus.flush();
         } catch (DataIntegrityViolationException ex) {
-            throw menuItemInUse();
+            item.setIsDeleted(true);
+            item.setStatus(MenuItemStatus.DISCONTINUED);
+            menus.save(item);
         }
         invalidator.afterCommit();
     }

@@ -163,6 +163,7 @@ public class BillServiceImpl implements BillService {
 
                 return BillPreviewResponse.builder()
                                 .sessionId(session.getId())
+                                .sessionCode(session.getSessionCode())
                                 .tableCode(session.getTable().getTableCode())
                                 .openedAt(session.getOpenedAt())
                                 .items(previewItems)
@@ -507,6 +508,7 @@ public class BillServiceImpl implements BillService {
                 String createdByName = bill.getCreatedBy() != null ? bill.getCreatedBy().getFullName() : null;
 
                 Long sessionId = bill.getServiceSession() != null ? bill.getServiceSession().getId() : null;
+                String sessionCode = bill.getServiceSession() != null ? bill.getServiceSession().getSessionCode() : null;
                 LocalDateTime openedAt = bill.getServiceSession() != null ? bill.getServiceSession().getOpenedAt()
                                 : null;
                 LocalDateTime closedAt = bill.getServiceSession() != null ? bill.getServiceSession().getClosedAt()
@@ -516,6 +518,7 @@ public class BillServiceImpl implements BillService {
                                 .id(bill.getId())
                                 .billCode(bill.getBillCode())
                                 .sessionId(sessionId)
+                                .sessionCode(sessionCode)
                                 .tableCode(bill.getTableCode())
                                 .amountBeforeDiscount(bill.getAmountBeforeDiscount())
                                 .promotionId(promotionId)

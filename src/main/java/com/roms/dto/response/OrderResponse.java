@@ -18,6 +18,7 @@ public class OrderResponse {
 
     private Long id;
     private Long sessionId;
+    private String sessionCode;
     private Long tableId;
     private String tableCode;
     private OrderStatus status;

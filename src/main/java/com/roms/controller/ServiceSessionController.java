@@ -102,6 +102,7 @@ public class ServiceSessionController {
     public ResponseEntity<ApiResponse<PageResponse<ServiceSessionResponse>>> getSessions(
             @RequestParam(required = false) Long tableId,
             @RequestParam(required = false) ServiceSessionStatus status,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "openedAt,desc") String[] sort) {
@@ -115,7 +116,7 @@ public class ServiceSessionController {
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortOrder);
-        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, pageable);
+        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, search, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Service sessions retrieved successfully", sessions));
     }

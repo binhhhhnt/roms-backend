@@ -164,10 +164,10 @@ class MenuItemExcelServiceImplTest {
                 out.toByteArray()
         );
 
-        when(categoryRepository.findByName(anyString())).thenReturn(Optional.of(testCategory));
+        when(categoryRepository.findByNameAndIsDeletedFalse(anyString())).thenReturn(Optional.of(testCategory));
         when(taxCategoryService.findOrCreateByRate(any())).thenReturn(testTaxCategory);
-        when(menuItemRepository.findByName("Phở Bò")).thenReturn(Optional.of(testMenuItem));
-        when(menuItemRepository.findByName("Bia lon Heineken")).thenReturn(Optional.empty());
+        when(menuItemRepository.findByNameAndIsDeletedFalse("Phở Bò")).thenReturn(Optional.of(testMenuItem));
+        when(menuItemRepository.findByNameAndIsDeletedFalse("Bia lon Heineken")).thenReturn(Optional.empty());
 
         ExcelImportResultResponse result = menuItemExcelService.importMenuItems(file);
 

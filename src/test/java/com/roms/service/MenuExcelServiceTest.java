@@ -49,7 +49,7 @@ class MenuExcelServiceTest {
         mvc = MockMvcBuilders.standaloneSetup(new MenuExcelController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         authenticate(UserRole.OWNER);
-        when(categories.findAll()).thenReturn(List.of());
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of());
         when(categories.saveAll(any())).thenAnswer(call -> {
             List<Category> values = call.getArgument(0);
             for (int i = 0; i < values.size(); i++) values.get(i).setId(100L + i);
@@ -132,7 +132,7 @@ class MenuExcelServiceTest {
 
     @Test void newCategoriesAppendAfterMaximumExistingOrderInPhysicalRowOrder() throws Exception {
         var old = Category.builder().id(5L).name("Danh mục cũ").displayOrder(50).isActive(false).build();
-        when(categories.findAll()).thenReturn(List.of(old));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(old));
         var upload = file(w -> {
             var sheet = w.getSheetAt(0);
             sheet.getRow(1).getCell(0).setCellValue(99);
@@ -153,7 +153,7 @@ class MenuExcelServiceTest {
 
     @Test void reusedCategoryKeepsItsPositionAndNewCategoryGoesAfterExistingMaximum() throws Exception {
         var reused = Category.builder().id(7L).name("Khai vị").displayOrder(3).build();
-        when(categories.findAll()).thenReturn(List.of(reused, Category.builder().id(8L).name("Khác").displayOrder(20).build()));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(reused, Category.builder().id(8L).name("Khác").displayOrder(20).build()));
         var upload = file(w -> {
             var row = w.getSheetAt(0).createRow(2);
             row.createCell(0).setCellValue(2);
@@ -187,14 +187,14 @@ class MenuExcelServiceTest {
     }
 
     @Test void categoryOrderOverflowRejectsImportBeforeWriting() throws Exception {
-        when(categories.findAll()).thenReturn(List.of(Category.builder().id(7L).name("Khác").displayOrder(Integer.MAX_VALUE).build()));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(Category.builder().id(7L).name("Khác").displayOrder(Integer.MAX_VALUE).build()));
         var upload = file(w -> {});
         assertThatThrownBy(() -> service.importMenu(upload)).isInstanceOf(ValidationException.class).hasMessageContaining("giới hạn");
         noWrites();
     }
 
     @Test void reusesUniqueDatabaseCategoryWithCaseAndWhitespaceNormalization() throws Exception {
-        when(categories.findAll()).thenReturn(List.of(Category.builder().id(7L).name("  KHAI   VỊ ").build()));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(Category.builder().id(7L).name("  KHAI   VỊ ").build()));
         var result = service.importMenu(file(w -> {}));
         assertThat(result.categoriesCreated()).isZero();
         assertThat(result.categoriesReused()).isEqualTo(1);
@@ -202,14 +202,14 @@ class MenuExcelServiceTest {
     }
 
     @Test void resolvesExistingCategoryEvenWhenCategorySheetOnlyContainsHeaders() throws Exception {
-        when(categories.findAll()).thenReturn(List.of(Category.builder().id(7L).name("Khai vị").build()));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(Category.builder().id(7L).name("Khai vị").build()));
         var result = service.importMenu(file(w -> w.getSheetAt(0).removeRow(w.getSheetAt(0).getRow(1))));
         assertThat(result.categoriesReused()).isEqualTo(1);
         assertThat(result.itemsCreated()).isEqualTo(1);
     }
 
     @Test void duplicateDatabaseCategoriesAreRejectedBeforeAnyWrites() throws Exception {
-        when(categories.findAll()).thenReturn(List.of(Category.builder().id(7L).name("Khai vị").build(), Category.builder().id(8L).name("khai vị").build()));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(Category.builder().id(7L).name("Khai vị").build(), Category.builder().id(8L).name("khai vị").build()));
         var file = file(w -> {});
         assertThatThrownBy(() -> service.importMenu(file)).isInstanceOf(ValidationException.class).satisfies(ex ->
                 assertThat(((ValidationException) ex).getDetails().toString()).contains("nhiều danh mục"));
@@ -255,7 +255,7 @@ class MenuExcelServiceTest {
 
     @Test void existingItemIsSkippedWithoutOverwritingOnRepeatUpload() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         var original = MenuItem.builder().category(category).name(" NEM RÁN ").price(new java.math.BigDecimal("49000")).build();
         when(items.findAllForExcelImport()).thenReturn(List.of(original));
         var file = file(w -> {});
@@ -275,7 +275,7 @@ class MenuExcelServiceTest {
 
     @Test void skipsExistingItemButAddsNewItemsInTheSameUpload() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         when(items.findAllForExcelImport()).thenReturn(List.of(MenuItem.builder().category(category).name("Nem rán").build()));
         var upload = file(w -> addFood(w, 2, 2, "Salad", "Khai vị", 35000));
         var review = reviewFor(upload);
@@ -289,7 +289,7 @@ class MenuExcelServiceTest {
 
     @Test void listsEveryDuplicateFromCatalogAndFileBeforeSaving() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         when(items.findAllForExcelImport()).thenReturn(List.of(MenuItem.builder().category(category).name("Nem rán").build()));
         var upload = file(w -> {
             addFood(w, 2, 2, "Salad", "Khai vị", 35000);
@@ -307,7 +307,7 @@ class MenuExcelServiceTest {
 
     @Test void reviewTokenCannotApproveAnotherFileOrAnArbitraryConfirmation() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         when(items.findAllForExcelImport()).thenReturn(List.of(MenuItem.builder().category(category).name("Nem rán").build()));
         var upload = file(w -> addFood(w, 2, 2, "Salad", "Khai vị", 35000));
         var review = reviewFor(upload);
@@ -324,7 +324,7 @@ class MenuExcelServiceTest {
     @Test void changedDuplicateListRequiresFreshApproval() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
         var original = MenuItem.builder().category(category).name("Nem rán").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         when(items.findAllForExcelImport()).thenReturn(List.of(original));
         var upload = file(w -> addFood(w, 2, 2, "Salad", "Khai vị", 35000));
         var review = reviewFor(upload);
@@ -341,7 +341,7 @@ class MenuExcelServiceTest {
     @Test void errorsTakePriorityAndConfirmationCannotBypassNewConflicts() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
         var original = MenuItem.builder().category(category).name("Nem rán").build();
-        when(categories.findAll()).thenReturn(List.of(category));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category));
         when(items.findAllForExcelImport()).thenReturn(List.of(original));
         var upload = file(w -> addFood(w, 2, 2, "Salad", "Khai vị", 35000));
         var review = reviewFor(upload);
@@ -380,7 +380,7 @@ class MenuExcelServiceTest {
     @Test void exactExistingPairIsSkippedAndOnlyTheWrongCategoryRowIsReported() throws Exception {
         var category = Category.builder().id(7L).name("Khai vị").build();
         var other = Category.builder().id(9L).name("Món chính").build();
-        when(categories.findAll()).thenReturn(List.of(category, other));
+        when(categories.findAllByIsDeletedFalse()).thenReturn(List.of(category, other));
         when(items.findAllForExcelImport()).thenReturn(List.of(MenuItem.builder().category(category).name("Nem rán").build()));
         var upload = file(w -> addFood(w, 2, 2, "Nem rán", "Món chính", 55000));
         assertThatThrownBy(() -> service.importMenu(upload)).isInstanceOf(ValidationException.class).satisfies(ex -> {

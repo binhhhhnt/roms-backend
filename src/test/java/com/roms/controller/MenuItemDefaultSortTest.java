@@ -22,11 +22,11 @@ class MenuItemDefaultSortTest {
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver()).build();
         for (String property : List.of("id", "name")) {
             var pageable = PageRequest.of(0, 20, Sort.by(property));
-            when(service.getMenuItems(null, null, 1, pageable)).thenReturn(PageResponse.from(new PageImpl<>(List.of()), value -> null));
+            when(service.getMenuItems(null, null, 1, false, pageable)).thenReturn(PageResponse.from(new PageImpl<>(List.of()), value -> null));
         }
         mvc.perform(get("/api/menu-items")).andExpect(status().isOk());
-        verify(service).getMenuItems(null, null, 1, PageRequest.of(0, 20, Sort.by("id")));
+        verify(service).getMenuItems(null, null, 1, false, PageRequest.of(0, 20, Sort.by("id")));
         mvc.perform(get("/api/menu-items").param("sort", "name,asc")).andExpect(status().isOk());
-        verify(service).getMenuItems(null, null, 1, PageRequest.of(0, 20, Sort.by("name")));
+        verify(service).getMenuItems(null, null, 1, false, PageRequest.of(0, 20, Sort.by("name")));
     }
 }

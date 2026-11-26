@@ -197,7 +197,7 @@ public class MenuExcelServiceImpl implements MenuExcelService {
         if (categoryRows.isEmpty() && itemRows.isEmpty() && errors.isEmpty()) throw new ValidationException("File Excel không có dữ liệu để nhập.");
 
         var existingByName = new HashMap<String, List<Category>>();
-        var existingCategories = categories.findAll();
+        var existingCategories = categories.findAllByIsDeletedFalse();
         long nextOrder = (long) existingCategories.stream().map(Category::getDisplayOrder)
                 .filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(0) + 1;
         for (var category : existingCategories) {

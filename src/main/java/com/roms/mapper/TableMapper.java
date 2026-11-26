@@ -32,7 +32,8 @@ public class TableMapper {
                 .id(table.getId())
                 .tableCode(table.getTableCode())
                 .capacity(table.getCapacity())
-                .area(table.getArea())
+                .areaId(table.getArea() != null ? table.getArea().getId() : null)
+                .area(table.getArea() != null ? table.getArea().getName() : null)
                 .isActive(table.getIsActive())
                 .createdAt(table.getCreatedAt())
                 .updatedAt(table.getUpdatedAt())
@@ -62,6 +63,7 @@ public class TableMapper {
         } else if (activeSession != null && activeSession.getStatus() == ServiceSessionStatus.ACTIVE) {
             response.setRealtimeStatus("OCCUPIED");
             response.setActiveSessionId(activeSession.getId());
+            response.setActiveSessionCode(activeSession.getSessionCode());
         } else {
             response.setRealtimeStatus("EMPTY");
         }
@@ -83,6 +85,7 @@ public class TableMapper {
 
         ServiceSessionResponse.ServiceSessionResponseBuilder builder = ServiceSessionResponse.builder()
                 .id(session.getId())
+                .sessionCode(session.getSessionCode())
                 .status(session.getStatus())
                 .openedAt(session.getOpenedAt())
                 .closedAt(session.getClosedAt());

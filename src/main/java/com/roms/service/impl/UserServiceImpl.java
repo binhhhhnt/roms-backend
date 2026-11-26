@@ -208,7 +208,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
         // Kiểm tra an toàn: Không cho phép tự khóa tài khoản của chính mình
@@ -247,6 +247,36 @@ public class UserServiceImpl implements UserService {
         }
 
         return response;
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long id) {
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+
+        Long currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        if (id.equals(currentUserId)) {
+            throw new BusinessRuleException("Cannot delete your own account", "CANNOT_DELETE_SELF");
+        }
+
+        if (user.getRole() == UserRole.TABLE_ACCOUNT && user.getTable() != null) {
+            boolean hasActiveSession = serviceSessionRepository.existsByTableIdAndStatus(
+                    user.getTable().getId(), ServiceSessionStatus.ACTIVE
+            );
+            if (hasActiveSession) {
+                throw new BusinessRuleException(
+                        "Không thể xóa tài khoản khi bàn đang có phiên phục vụ hoạt động.",
+                        "TABLE_HAS_ACTIVE_SESSION"
+                );
+            }
+        }
+
+        user.setIsDeleted(true);
+        user.setIsActive(false);
+        userRepository.save(user);
+        refreshTokenService.revokeAllUserSessions(id);
+        log.info("Soft-deleted user id: {}, username: {}. All active sessions revoked.", id, user.getUsername());
     }
 
     /**

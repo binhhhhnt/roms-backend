@@ -39,7 +39,15 @@ class UserServiceTest {
     private RestaurantTableRepository tableRepository;
 
     @Autowired
+    private com.roms.repository.AreaRepository areaRepository;
+
+    @Autowired
     private com.roms.repository.ServiceSessionRepository sessionRepository;
+
+    private com.roms.entity.Area defaultArea() {
+        return areaRepository.findAll().stream().findFirst()
+                .orElseGet(() -> areaRepository.save(com.roms.entity.Area.builder().name("Default Area").isActive(true).build()));
+    }
 
     @Test
     @DisplayName("Should query users with pagination and filter by role")
@@ -77,6 +85,7 @@ class UserServiceTest {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T99")
                 .capacity(4)
+                .area(defaultArea())
                 .isActive(true)
                 .build());
 
@@ -240,6 +249,7 @@ class UserServiceTest {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T_ACT_01")
                 .capacity(4)
+                .area(defaultArea())
                 .isActive(true)
                 .build());
 
@@ -265,6 +275,7 @@ class UserServiceTest {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T_SESS_01")
                 .capacity(4)
+                .area(defaultArea())
                 .isActive(true)
                 .build());
 
@@ -295,6 +306,7 @@ class UserServiceTest {
         RestaurantTable table = tableRepository.save(RestaurantTable.builder()
                 .tableCode("T_INACT_01")
                 .capacity(4)
+                .area(defaultArea())
                 .isActive(false)
                 .build());
 
@@ -310,5 +322,36 @@ class UserServiceTest {
         UserResponse response = userService.updateUserStatus(tableUser.getId(), new UpdateUserStatusRequest(false));
         assertThat(response.getIsActive()).isFalse();
         assertThat(response.getCanDeactivate()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should reject deleting TABLE_ACCOUNT when table has active session")
+    void shouldRejectDeletingTableAccountWhenTableHasActiveSession() {
+        RestaurantTable table = tableRepository.save(RestaurantTable.builder()
+                .tableCode("T_DEL_01")
+                .capacity(4)
+                .area(defaultArea())
+                .isActive(true)
+                .build());
+
+        User tableUser = userRepository.save(User.builder()
+                .username("table_del_01")
+                .passwordHash("hash")
+                .fullName("Table Del 01")
+                .role(UserRole.TABLE_ACCOUNT)
+                .table(table)
+                .isActive(true)
+                .build());
+
+        sessionRepository.save(com.roms.entity.ServiceSession.builder()
+                .table(table)
+                .openedBy(tableUser)
+                .status(com.roms.enums.ServiceSessionStatus.ACTIVE)
+                .openedAt(java.time.LocalDateTime.now())
+                .build());
+
+        assertThatThrownBy(() -> userService.deleteUser(tableUser.getId()))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", "TABLE_HAS_ACTIVE_SESSION");
     }
 }
