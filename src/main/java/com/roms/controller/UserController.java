@@ -106,6 +106,17 @@ public class UserController {
     }
 
     /**
+     * Xóa mềm tài khoản người dùng (ẩn khỏi danh sách và thu hồi phiên đăng nhập).
+     * Quyền truy cập: Chỉ dành cho OWNER.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
+    }
+
+    /**
      * [ROMS-004] Xem thông tin hồ sơ của người dùng đang đăng nhập.
      * Quyền truy cập: Mọi người dùng đã xác thực (Bearer Token).
      */

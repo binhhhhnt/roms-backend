@@ -50,7 +50,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin phiên vừa mở với HTTP status 201 Created
      */
     @PostMapping("/tables/{tableId}/open")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> openSession(@PathVariable Long tableId) {
         ServiceSessionResponse session = sessionService.openSession(tableId);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -66,7 +66,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin phiên sau khi đóng
      */
     @PostMapping("/{sessionId}/close")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> closeSession(@PathVariable Long sessionId) {
         ServiceSessionResponse session = sessionService.closeSession(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Service session closed successfully", session));
@@ -80,7 +80,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin chi tiết phiên
      */
     @GetMapping("/{sessionId}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> getSessionById(@PathVariable Long sessionId) {
         ServiceSessionResponse session = sessionService.getSessionById(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Service session retrieved successfully", session));
@@ -98,10 +98,11 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa PageResponse danh sách phiên
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<PageResponse<ServiceSessionResponse>>> getSessions(
             @RequestParam(required = false) Long tableId,
             @RequestParam(required = false) ServiceSessionStatus status,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "openedAt,desc") String[] sort) {
@@ -115,7 +116,7 @@ public class ServiceSessionController {
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortOrder);
-        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, pageable);
+        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, search, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Service sessions retrieved successfully", sessions));
     }
@@ -129,7 +130,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin phiên sau khi đổi bàn
      */
     @PostMapping("/{sessionId}/transfer")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<ServiceSessionResponse>> transferTable(
             @PathVariable Long sessionId,
             @Valid @RequestBody TransferTableRequest request) {
@@ -147,7 +148,7 @@ public class ServiceSessionController {
      * @return ResponseEntity bọc ApiResponse chứa danh sách lịch sử chuyển bàn phân trang
      */
     @GetMapping("/{sessionId}/transfers")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<PageResponse<TableTransferHistoryResponse>>> getTransferHistory(
             @PathVariable Long sessionId,
             @RequestParam(defaultValue = "0") int page,
@@ -164,7 +165,7 @@ public class ServiceSessionController {
      * Lấy danh sách các món bán trực tiếp (bia, rượu, nước ngọt đóng chai...) của phiên phục vụ để kiểm đồ.
      */
     @GetMapping("/{sessionId}/direct-sale-items")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<List<DirectSaleItemDto>>> getDirectSaleItems(@PathVariable Long sessionId) {
         List<DirectSaleItemDto> items = orderService.getSessionDirectSaleItems(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Direct sale items retrieved successfully", items));
@@ -174,7 +175,7 @@ public class ServiceSessionController {
      * Kiểm đồ trả hàng: hoàn kho các sản phẩm bán trực tiếp nguyên vẹn khách không dùng hết.
      */
     @PostMapping("/{sessionId}/return-items")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<List<DirectSaleItemDto>>> returnItems(
             @PathVariable Long sessionId,
             @Valid @RequestBody ReturnOrderItemsRequest request) {

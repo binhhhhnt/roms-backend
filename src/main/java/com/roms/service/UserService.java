@@ -41,6 +41,11 @@ public interface UserService {
     UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request);
 
     /**
+     * Xóa mềm tài khoản người dùng (ẩn khỏi danh sách và thu hồi toàn bộ phiên đăng nhập).
+     */
+    void deleteUser(Long id);
+
+    /**
      * Lấy thông tin hồ sơ của người dùng hiện tại đang đăng nhập.
      */
     UserResponse getCurrentUserProfile();

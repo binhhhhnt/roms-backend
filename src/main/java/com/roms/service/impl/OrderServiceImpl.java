@@ -70,7 +70,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to create orders");
         }
 
@@ -93,7 +93,7 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, BigDecimal> aggregatedRequirements = new HashMap<>();
 
         for (CreateOrderItemRequest line : request.getItems()) {
-            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(), id -> menuItemRepository.findById(id)
+            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(), id -> menuItemRepository.findByIdAndIsDeletedFalse(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id)));
 
             if (menuItem.getStatus() != MenuItemStatus.AVAILABLE) {
@@ -285,7 +285,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to cancel orders");
         }
 
@@ -331,7 +331,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' is not permitted to cancel order items");
         }
 
@@ -416,7 +416,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Role '" + role + "' cannot complete order items");
         }
 
@@ -559,9 +559,11 @@ public class OrderServiceImpl implements OrderService {
                 .map(OrderItemResponse::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        String sessionCode = order.getServiceSession() != null ? order.getServiceSession().getSessionCode() : null;
         return OrderResponse.builder()
                 .id(order.getId())
                 .sessionId(sessionId)
+                .sessionCode(sessionCode)
                 .tableId(tableId)
                 .tableCode(tableCode)
                 .status(order.getStatus())
@@ -622,7 +624,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
+        if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
             throw new ForbiddenException("Only service staff or owner can process item returns");
         }
 

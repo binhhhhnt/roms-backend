@@ -5,11 +5,13 @@ import com.roms.dto.request.CreateTableRequest;
 import com.roms.dto.request.UpdateTableRequest;
 import com.roms.dto.request.UpdateTableStatusRequest;
 import com.roms.dto.response.TableResponse;
+import com.roms.entity.Area;
 import com.roms.entity.RestaurantTable;
 import com.roms.enums.ServiceSessionStatus;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.mapper.TableMapper;
+import com.roms.repository.AreaRepository;
 import com.roms.repository.RestaurantTableRepository;
 import com.roms.repository.ServiceSessionRepository;
 import com.roms.service.impl.TableServiceImpl;
@@ -42,6 +44,9 @@ class TableServiceImplTest {
     private RestaurantTableRepository tableRepository;
 
     @Mock
+    private AreaRepository areaRepository;
+
+    @Mock
     private ServiceSessionRepository sessionRepository;
 
     @Mock
@@ -50,16 +55,23 @@ class TableServiceImplTest {
     @InjectMocks
     private TableServiceImpl tableService;
 
+    private Area mainHallArea;
     private RestaurantTable sampleTable;
     private TableResponse sampleResponse;
 
     @BeforeEach
     void setUp() {
+        mainHallArea = Area.builder()
+                .id(1L)
+                .name("Main Hall")
+                .isActive(true)
+                .build();
+
         sampleTable = RestaurantTable.builder()
                 .id(1L)
                 .tableCode("T01")
                 .capacity(4)
-                .area("Main Hall")
+                .area(mainHallArea)
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -69,6 +81,7 @@ class TableServiceImplTest {
                 .id(1L)
                 .tableCode("T01")
                 .capacity(4)
+                .areaId(1L)
                 .area("Main Hall")
                 .isActive(true)
                 .realtimeStatus("EMPTY")
@@ -106,7 +119,7 @@ class TableServiceImplTest {
         @Test
         @DisplayName("should return table when found")
         void shouldReturnTableWhenFound() {
-            when(tableRepository.findById(1L)).thenReturn(Optional.of(sampleTable));
+            when(tableRepository.findWithAreaById(1L)).thenReturn(Optional.of(sampleTable));
             when(sessionRepository.findByTableIdAndStatus(1L, ServiceSessionStatus.ACTIVE))
                     .thenReturn(Optional.empty());
             when(tableMapper.toResponseWithStatus(sampleTable, null))
@@ -115,12 +128,13 @@ class TableServiceImplTest {
             TableResponse result = tableService.getTableById(1L);
 
             assertThat(result.getTableCode()).isEqualTo("T01");
+            assertThat(result.getAreaId()).isEqualTo(1L);
         }
 
         @Test
         @DisplayName("should throw when table not found")
         void shouldThrowWhenNotFound() {
-            when(tableRepository.findById(999L)).thenReturn(Optional.empty());
+            when(tableRepository.findWithAreaById(999L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> tableService.getTableById(999L))
                     .isInstanceOf(ResourceNotFoundException.class)
@@ -135,12 +149,14 @@ class TableServiceImplTest {
         @Test
         @DisplayName("should create table successfully")
         void shouldCreateTableSuccessfully() {
+            Area terraceArea = Area.builder().id(2L).name("Terrace").isActive(true).build();
             CreateTableRequest request = CreateTableRequest.builder()
                     .tableCode("T11")
                     .capacity(6)
-                    .area("Terrace")
+                    .areaId(2L)
                     .build();
 
+            when(areaRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(terraceArea));
             when(tableRepository.existsByTableCode("T11")).thenReturn(false);
             when(tableRepository.save(any(RestaurantTable.class))).thenAnswer(inv -> {
                 RestaurantTable saved = inv.getArgument(0);
@@ -148,12 +164,30 @@ class TableServiceImplTest {
                 return saved;
             });
             when(tableMapper.toResponseWithStatus(any(RestaurantTable.class), isNull()))
-                    .thenReturn(TableResponse.builder().id(11L).tableCode("T11").build());
+                    .thenReturn(TableResponse.builder().id(11L).tableCode("T11").areaId(2L).area("Terrace").build());
 
             TableResponse result = tableService.createTable(request);
 
             assertThat(result.getTableCode()).isEqualTo("T11");
+            assertThat(result.getAreaId()).isEqualTo(2L);
             verify(tableRepository).save(any(RestaurantTable.class));
+        }
+
+        @Test
+        @DisplayName("should throw when assigning table to inactive area")
+        void shouldThrowOnInactiveArea() {
+            Area inactiveArea = Area.builder().id(3L).name("Closed").isActive(false).build();
+            CreateTableRequest request = CreateTableRequest.builder()
+                    .tableCode("T12")
+                    .capacity(4)
+                    .areaId(3L)
+                    .build();
+
+            when(areaRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(inactiveArea));
+
+            assertThatThrownBy(() -> tableService.createTable(request))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("inactive area");
         }
 
         @Test
@@ -162,8 +196,10 @@ class TableServiceImplTest {
             CreateTableRequest request = CreateTableRequest.builder()
                     .tableCode("T01")
                     .capacity(4)
+                    .areaId(1L)
                     .build();
 
+            when(areaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(mainHallArea));
             when(tableRepository.existsByTableCode("T01")).thenReturn(true);
 
             assertThatThrownBy(() -> tableService.createTable(request))
@@ -179,13 +215,15 @@ class TableServiceImplTest {
         @Test
         @DisplayName("should update table successfully")
         void shouldUpdateTableSuccessfully() {
+            Area vipArea = Area.builder().id(2L).name("VIP Room").isActive(true).build();
             UpdateTableRequest request = UpdateTableRequest.builder()
                     .tableCode("T01-NEW")
                     .capacity(8)
-                    .area("VIP Room")
+                    .areaId(2L)
                     .build();
 
-            when(tableRepository.findById(1L)).thenReturn(Optional.of(sampleTable));
+            when(areaRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(vipArea));
+            when(tableRepository.findWithAreaById(1L)).thenReturn(Optional.of(sampleTable));
             when(tableRepository.existsByTableCode("T01-NEW")).thenReturn(false);
             when(tableRepository.save(any(RestaurantTable.class))).thenReturn(sampleTable);
             when(sessionRepository.findByTableIdAndStatus(1L, ServiceSessionStatus.ACTIVE))
@@ -199,14 +237,34 @@ class TableServiceImplTest {
         }
 
         @Test
+        @DisplayName("should throw when moving table to inactive area")
+        void shouldThrowWhenMovingToInactiveArea() {
+            Area inactiveArea = Area.builder().id(3L).name("Closed").isActive(false).build();
+            UpdateTableRequest request = UpdateTableRequest.builder()
+                    .tableCode("T01")
+                    .capacity(4)
+                    .areaId(3L)
+                    .build();
+
+            when(areaRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(inactiveArea));
+            when(tableRepository.findWithAreaById(1L)).thenReturn(Optional.of(sampleTable));
+
+            assertThatThrownBy(() -> tableService.updateTable(1L, request))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("inactive area");
+        }
+
+        @Test
         @DisplayName("should throw on duplicate table code on update")
         void shouldThrowOnDuplicateCodeOnUpdate() {
             UpdateTableRequest request = UpdateTableRequest.builder()
                     .tableCode("T02")
                     .capacity(4)
+                    .areaId(1L)
                     .build();
 
-            when(tableRepository.findById(1L)).thenReturn(Optional.of(sampleTable));
+            when(areaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(mainHallArea));
+            when(tableRepository.findWithAreaById(1L)).thenReturn(Optional.of(sampleTable));
             when(tableRepository.existsByTableCode("T02")).thenReturn(true);
 
             assertThatThrownBy(() -> tableService.updateTable(1L, request))

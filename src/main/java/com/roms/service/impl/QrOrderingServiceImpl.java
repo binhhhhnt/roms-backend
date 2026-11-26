@@ -54,6 +54,7 @@ public class QrOrderingServiceImpl implements QrOrderingService {
     private final MenuItemImageMapper menuItemImageMapper;
     private final CategoryMapper categoryMapper;
     private final StompEventPublisher stompEventPublisher;
+    private final com.roms.service.SessionCodeGenerator sessionCodeGenerator;
 
     @Override
     @Transactional
@@ -66,8 +67,9 @@ public class QrOrderingServiceImpl implements QrOrderingService {
                 .qrOrderingEnabled(true)
                 .tableId(table.getId())
                 .tableCode(table.getTableCode())
-                .area(table.getArea())
+                .area(table.getArea() != null ? table.getArea().getName() : null)
                 .sessionId(session.getId())
+                .sessionCode(session.getSessionCode())
                 .restaurantName(settings.getRestaurantName())
                 .address(settings.getAddress())
                 .build();
@@ -78,7 +80,7 @@ public class QrOrderingServiceImpl implements QrOrderingService {
     public PageResponse<CategoryResponse> getCategories(String qrToken, Pageable pageable) {
         requireQrOrderingEnabled();
         requireActiveTable(qrToken);
-        return PageResponse.from(categoryRepository.findByIsActiveTrue(pageable), categoryMapper::toResponse);
+        return PageResponse.from(categoryRepository.findByIsActiveTrueAndIsDeletedFalse(pageable), categoryMapper::toResponse);
     }
 
     @Override
@@ -88,7 +90,7 @@ public class QrOrderingServiceImpl implements QrOrderingService {
         requireActiveTable(qrToken);
 
         Set<MenuItemStatus> statuses = EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
-        Page<MenuItem> page = menuItemRepository.findCatalog(categoryId, statuses, false, true, pageable);
+        Page<MenuItem> page = menuItemRepository.findCatalog(categoryId, statuses, true, true, pageable);
         if (page.isEmpty()) {
             return PageResponse.from(page, item -> toMenuReadResponse(item, List.of()));
         }
@@ -348,6 +350,7 @@ public class QrOrderingServiceImpl implements QrOrderingService {
 
         try {
             ServiceSession created = sessionRepository.saveAndFlush(ServiceSession.builder()
+                    .sessionCode(sessionCodeGenerator.nextSessionCode())
                     .table(table)
                     .openedBy(null)
                     .status(ServiceSessionStatus.ACTIVE)
@@ -393,9 +396,10 @@ public class QrOrderingServiceImpl implements QrOrderingService {
         return QrOrderRequestResponse.builder()
                 .id(r.getId())
                 .serviceSessionId(session.getId())
+                .serviceSessionCode(session.getSessionCode())
                 .tableId(table.getId())
                 .tableCode(table.getTableCode())
-                .area(table.getArea())
+                .area(table.getArea() != null ? table.getArea().getName() : null)
                 .status(r.getStatus())
                 .confirmedOrderId(r.getConfirmedOrder() != null ? r.getConfirmedOrder().getId() : null)
                 .confirmedById(r.getConfirmedBy() != null ? r.getConfirmedBy().getId() : null)

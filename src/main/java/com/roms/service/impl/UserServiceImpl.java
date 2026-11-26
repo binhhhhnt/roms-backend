@@ -69,7 +69,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserById(Long id) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         return userMapper.toResponse(user);
     }
@@ -114,9 +114,13 @@ public class UserServiceImpl implements UserService {
                 .isActive(true)
                 .build();
 
-        User savedUser = userRepository.save(user);
-        log.info("Created user id: {}, username: {}, role: {}", savedUser.getId(), savedUser.getUsername(), savedUser.getRole());
-        return userMapper.toResponse(savedUser);
+        try {
+            User savedUser = userRepository.saveAndFlush(user);
+            log.info("Created user id: {}, username: {}, role: {}", savedUser.getId(), savedUser.getUsername(), savedUser.getRole());
+            return userMapper.toResponse(savedUser);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            throw new BusinessRuleException("Username is already taken: " + username, "DUPLICATE_USERNAME");
+        }
     }
 
     /**
@@ -168,7 +172,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
         // Kiểm tra an toàn: Không cho phép tự khóa tài khoản của chính mình
@@ -191,6 +195,24 @@ public class UserServiceImpl implements UserService {
         }
 
         return response;
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long id) {
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+
+        Long currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        if (id.equals(currentUserId)) {
+            throw new BusinessRuleException("Cannot delete your own account", "CANNOT_DELETE_SELF");
+        }
+
+        user.setIsDeleted(true);
+        user.setIsActive(false);
+        userRepository.save(user);
+        refreshTokenService.revokeAllUserSessions(id);
+        log.info("Soft-deleted user id: {}, username: {}. All active sessions revoked.", id, user.getUsername());
     }
 
     /**

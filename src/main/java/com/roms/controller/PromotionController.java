@@ -36,7 +36,7 @@ public class PromotionController {
     }
 
     @GetMapping("/valid")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<List<PromotionDto>>> getValidPromotions() {
         List<PromotionDto> validPromotions = promotionService.getValidPromotions();
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách khuyến mãi khả dụng thành công", validPromotions));

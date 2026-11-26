@@ -1,6 +1,7 @@
 package com.roms.service.impl;
 
 import com.roms.entity.Category;
+import com.roms.enums.MenuItemStatus;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.exception.ValidationException;
@@ -33,18 +34,15 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
     public void deleteCategory(Long id) {
         CatalogAccess.requireOwner();
         requireId(id);
-        // Lock in the same order for every deletion before removing a row or shifting positions.
+        // Lock in the same order for every deletion before soft-deleting a row or shifting positions.
         var ordered = categories.findAllForUpdateInDisplayOrder();
         var category = ordered.stream().filter(value -> id.equals(value.getId())).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-        if (menus.existsByCategoryId(id)) throw categoryInUse();
-        try {
-            categories.delete(category);
-            categories.flush();
-        } catch (DataIntegrityViolationException ex) {
-            throw categoryInUse();
-        }
+        if (menus.existsByCategoryIdAndIsDeletedFalse(id)) throw categoryInUse();
+        category.setIsDeleted(true);
+        category.setIsActive(false);
         var reordered = new ArrayList<Category>();
+        reordered.add(category);
         int position = 1;
         for (var remaining : ordered) {
             if (id.equals(remaining.getId())) continue;
@@ -54,7 +52,7 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
             }
             position++;
         }
-        if (!reordered.isEmpty()) categories.saveAll(reordered);
+        categories.saveAll(reordered);
     }
 
     @Override
@@ -64,18 +62,27 @@ public class CatalogDeletionServiceImpl implements CatalogDeletionService {
         requireId(id);
         var item = menus.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
-        if (orderItems.existsByMenuItemId(id)) throw menuItemInUse();
-        // Reuse the existing image lifecycle, including Cloudinary cleanup and error handling.
+        // Clean up Cloudinary images and recipe items regardless of hard vs soft delete.
         for (var image : images.findCatalogImages(List.of(id))) {
             imageService.deleteImage(id, image.getId());
         }
+        recipes.deleteByMenuItemId(id);
+        recipes.flush();
+
+        if (orderItems.existsByMenuItemId(id)) {
+            item.setIsDeleted(true);
+            item.setStatus(MenuItemStatus.DISCONTINUED);
+            menus.save(item);
+            return;
+        }
+
         try {
-            recipes.deleteByMenuItemId(id);
-            recipes.flush();
             menus.delete(item);
             menus.flush();
         } catch (DataIntegrityViolationException ex) {
-            throw menuItemInUse();
+            item.setIsDeleted(true);
+            item.setStatus(MenuItemStatus.DISCONTINUED);
+            menus.save(item);
         }
     }
 

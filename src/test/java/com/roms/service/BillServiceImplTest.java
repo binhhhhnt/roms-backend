@@ -323,5 +323,90 @@ class BillServiceImplTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("không khớp với số tiền cần thanh toán");
     }
+
+    @Test
+    @DisplayName("checkout - cộng phụ phí và lưu lý do phụ phí thành công")
+    void checkout_WithSurcharge_Success() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(ownerUser));
+        when(sessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(activeSession));
+        when(billRepository.findByServiceSessionId(100L)).thenReturn(Optional.empty());
+        when(orderItemRepository.findAllBySessionIdWithMenuItem(100L))
+                .thenReturn(List.of(completedBeer, completedBeef));
+        when(restaurantSettingService.isMenuPriceIncludesVat()).thenReturn(true);
+        when(billRepository.findMaxSequenceForDate(anyString())).thenReturn(0);
+        when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> {
+            Bill b = invocation.getArgument(0);
+            b.setId(1002L);
+            return b;
+        });
+
+        CheckoutBillRequest request = CheckoutBillRequest.builder()
+                .surchargeAmount(new BigDecimal("50000"))
+                .surchargeNote("Phí làm vỡ ly")
+                .payments(List.of(
+                        PaymentItemDto.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(new BigDecimal("560000")) // 510,000 + 50,000
+                                .build()
+                ))
+                .build();
+
+        BillResponse response = billService.checkout(100L, request);
+
+        assertThat(response.getSurchargeAmount()).isEqualByComparingTo(new BigDecimal("50000.00"));
+        assertThat(response.getSurchargeNote()).isEqualTo("Phí làm vỡ ly");
+        assertThat(response.getTotalAmount()).isEqualByComparingTo(new BigDecimal("560000.00"));
+    }
+
+    @Test
+    @DisplayName("checkout - từ chối khi có phụ phí > 0 nhưng thiếu lý do phụ phí")
+    void checkout_ThrowsWhenSurchargeNoteMissing() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(ownerUser));
+        when(sessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(activeSession));
+        when(billRepository.findByServiceSessionId(100L)).thenReturn(Optional.empty());
+        when(orderItemRepository.findAllBySessionIdWithMenuItem(100L))
+                .thenReturn(List.of(completedBeer, completedBeef));
+        when(restaurantSettingService.isMenuPriceIncludesVat()).thenReturn(true);
+
+        CheckoutBillRequest request = CheckoutBillRequest.builder()
+                .surchargeAmount(new BigDecimal("30000"))
+                .surchargeNote("   ")
+                .payments(List.of(
+                        PaymentItemDto.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(new BigDecimal("540000"))
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> billService.checkout(100L, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", "SURCHARGE_NOTE_REQUIRED");
+    }
+
+    @Test
+    @DisplayName("checkout - từ chối khi phụ phí âm")
+    void checkout_ThrowsWhenSurchargeNegative() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(ownerUser));
+        when(sessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(activeSession));
+        when(billRepository.findByServiceSessionId(100L)).thenReturn(Optional.empty());
+        when(orderItemRepository.findAllBySessionIdWithMenuItem(100L))
+                .thenReturn(List.of(completedBeer, completedBeef));
+        when(restaurantSettingService.isMenuPriceIncludesVat()).thenReturn(true);
+
+        CheckoutBillRequest request = CheckoutBillRequest.builder()
+                .surchargeAmount(new BigDecimal("-10000"))
+                .payments(List.of(
+                        PaymentItemDto.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(new BigDecimal("500000"))
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> billService.checkout(100L, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", "INVALID_SURCHARGE_AMOUNT");
+    }
 }
 

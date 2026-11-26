@@ -32,7 +32,7 @@ public class StaffCallController {
      * Kiểm tra ràng buộc sở hữu bàn đối với TABLE_ACCOUNT.
      */
     @PostMapping("/{tableId}/call-staff")
-    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<Void>> callStaff(
             @PathVariable Long tableId,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -57,7 +57,7 @@ public class StaffCallController {
      * Broadcast ack event tới tất cả staff để đóng thông báo.
      */
     @PostMapping("/{tableId}/call-staff/acknowledge")
-    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<Void>> acknowledgeStaffCall(
             @PathVariable Long tableId,
             @RequestParam String requestId,

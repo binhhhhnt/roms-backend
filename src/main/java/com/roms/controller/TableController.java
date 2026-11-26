@@ -52,10 +52,10 @@ public class TableController {
      * @return ResponseEntity bọc ApiResponse chứa PageResponse danh sách bàn
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<PageResponse<TableResponse>>> getTables(
             @RequestParam(required = false) Boolean isActive,
-            @RequestParam(required = false) String area,
+            @RequestParam(required = false) Long areaId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -70,7 +70,7 @@ public class TableController {
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortOrder);
-        PageResponse<TableResponse> tables = tableService.getTables(isActive, area, search, pageable);
+        PageResponse<TableResponse> tables = tableService.getTables(isActive, areaId, search, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Tables retrieved successfully", tables));
     }
@@ -83,7 +83,7 @@ public class TableController {
      * @return ResponseEntity bọc ApiResponse chứa thông tin bàn ăn
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<TableResponse>> getTableById(@PathVariable Long id) {
         TableResponse table = tableService.getTableById(id);
         return ResponseEntity.ok(ApiResponse.success("Table retrieved successfully", table));
@@ -145,7 +145,7 @@ public class TableController {
      * @return ResponseEntity bọc ApiResponse chứa danh sách tên các khu vực
      */
     @GetMapping("/areas")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<List<String>>> getAreas() {
         List<String> areas = tableService.getDistinctAreas();
         return ResponseEntity.ok(ApiResponse.success("Areas retrieved successfully", areas));

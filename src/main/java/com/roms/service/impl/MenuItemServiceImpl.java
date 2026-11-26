@@ -72,8 +72,8 @@ public class MenuItemServiceImpl implements MenuItemService {
                 throw new ForbiddenException("Role cannot view the requested menu status");
             statuses = EnumSet.of(status);
         }
-        boolean requireBom = forOrder || (role == UserRole.SERVICE_STAFF);
-        var page = repository.findCatalog(categoryId, statuses, false, requireBom,
+        boolean requireBom = forOrder || (role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF);
+        var page = repository.findCatalog(categoryId, statuses, forOrder, requireBom,
                 normalizePageable(pageable));
         if (page.isEmpty())
             return PageResponse.from(page, item -> readResponse(item, List.of(), quantity));
@@ -94,7 +94,7 @@ public class MenuItemServiceImpl implements MenuItemService {
             throw new ValidationException("Menu item id must be positive");
         MenuItem item = repository.findCatalogById(id)
                 .filter(value -> visibleStatuses(role).contains(value.getStatus()))
-                .filter(value -> role != UserRole.SERVICE_STAFF
+                .filter(value -> (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF)
                         || recipeItemRepository.existsByMenuItemId(value.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
         List<MenuItemImageResponse> imageResponses = images.findCatalogImages(List.of(id)).stream()
@@ -115,7 +115,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private Set<MenuItemStatus> visibleStatuses(UserRole role) {
         return switch (role) {
             case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
-            case KITCHEN_STAFF, SERVICE_STAFF ->
+            case KITCHEN_STAFF, SERVICE_STAFF, CASHIER_STAFF ->
                 EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
         };
     }
@@ -160,7 +160,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     private MenuItemResponse write(MenuItemWriteRequest request, MenuItem item) {
-        item.setCategory(categories.findById(request.getCategoryId())
+        item.setCategory(categories.findByIdAndIsDeletedFalse(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found")));
 
         if (taxCategories != null) {

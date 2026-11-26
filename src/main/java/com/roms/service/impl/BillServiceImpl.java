@@ -135,7 +135,7 @@ public class BillServiceImpl implements BillService {
                         for (BigDecimal rate : sortedRates) {
                                 BigDecimal taxableAmt = taxGroup.get(rate);
                                 BigDecimal taxAmt = taxableAmt.multiply(rate)
-                                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                                                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
                                 taxBreakdowns.add(TaxBreakdownDto.builder()
                                                 .rate(rate)
                                                 .taxableAmount(taxableAmt)
@@ -172,6 +172,7 @@ public class BillServiceImpl implements BillService {
 
                 return BillPreviewResponse.builder()
                                 .sessionId(session.getId())
+                                .sessionCode(session.getSessionCode())
                                 .tableCode(session.getTable().getTableCode())
                                 .openedAt(session.getOpenedAt())
                                 .items(previewItems)
@@ -274,7 +275,7 @@ public class BillServiceImpl implements BillService {
                                 BigDecimal rate = entry.getKey();
                                 BigDecimal taxableAmt = entry.getValue();
                                 BigDecimal taxAmt = taxableAmt.multiply(rate)
-                                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                                                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
                                 totalTax = totalTax.add(taxAmt);
                         }
                 }
@@ -322,16 +323,39 @@ public class BillServiceImpl implements BillService {
 
                         if (appliedPromo.getDiscountType() == DiscountType.PERCENT) {
                                 discountAmount = amountBeforeDiscount.multiply(appliedPromo.getDiscountValue())
-                                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                                                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
                                 if (discountAmount.compareTo(amountBeforeDiscount) > 0) {
                                         discountAmount = amountBeforeDiscount;
                                 }
                         } else if (appliedPromo.getDiscountType() == DiscountType.FIXED_AMOUNT) {
-                                discountAmount = appliedPromo.getDiscountValue().min(amountBeforeDiscount);
+                                discountAmount = appliedPromo.getDiscountValue()
+                                                .min(amountBeforeDiscount)
+                                                .setScale(0, RoundingMode.HALF_UP);
                         }
                 }
 
-                BigDecimal totalAmount = amountBeforeDiscount.subtract(discountAmount);
+                BigDecimal surchargeAmount = request.getSurchargeAmount() != null
+                                ? request.getSurchargeAmount().setScale(0, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO;
+                if (surchargeAmount.compareTo(BigDecimal.ZERO) < 0) {
+                        throw new BusinessRuleException("Phụ phí không được âm", "INVALID_SURCHARGE_AMOUNT");
+                }
+
+                String surchargeNote = request.getSurchargeNote() != null ? request.getSurchargeNote().trim() : null;
+                if (surchargeAmount.compareTo(BigDecimal.ZERO) > 0
+                                && (surchargeNote == null || surchargeNote.isEmpty())) {
+                        throw new BusinessRuleException(
+                                        "Vui lòng nhập lý do phụ phí khi phụ phí lớn hơn 0",
+                                        "SURCHARGE_NOTE_REQUIRED");
+                }
+                if (surchargeAmount.compareTo(BigDecimal.ZERO) == 0) {
+                        surchargeNote = null;
+                }
+
+                BigDecimal rawTotal = amountBeforeDiscount.subtract(discountAmount)
+                                .add(surchargeAmount)
+                                .max(BigDecimal.ZERO);
+                BigDecimal totalAmount = roundToNearestThousand(rawTotal);
 
                 // Validate Payments
                 if (request.getPayments() == null || request.getPayments().isEmpty()) {
@@ -364,6 +388,8 @@ public class BillServiceImpl implements BillService {
                                 .amountBeforeDiscount(amountBeforeDiscount)
                                 .promotion(appliedPromo)
                                 .discountAmount(discountAmount)
+                                .surchargeAmount(surchargeAmount)
+                                .surchargeNote(surchargeNote)
                                 .totalAmount(totalAmount)
                                 .createdBy(createdByUser)
                                 .build();
@@ -523,6 +549,7 @@ public class BillServiceImpl implements BillService {
                 String createdByName = bill.getCreatedBy() != null ? bill.getCreatedBy().getFullName() : null;
 
                 Long sessionId = bill.getServiceSession() != null ? bill.getServiceSession().getId() : null;
+                String sessionCode = bill.getServiceSession() != null ? bill.getServiceSession().getSessionCode() : null;
                 LocalDateTime openedAt = bill.getServiceSession() != null ? bill.getServiceSession().getOpenedAt()
                                 : null;
                 LocalDateTime closedAt = bill.getServiceSession() != null ? bill.getServiceSession().getClosedAt()
@@ -532,12 +559,15 @@ public class BillServiceImpl implements BillService {
                                 .id(bill.getId())
                                 .billCode(bill.getBillCode())
                                 .sessionId(sessionId)
+                                .sessionCode(sessionCode)
                                 .tableCode(bill.getTableCode())
                                 .amountBeforeDiscount(bill.getAmountBeforeDiscount())
                                 .promotionId(promotionId)
                                 .promotionCode(promotionCode)
                                 .promotionName(promotionName)
                                 .discountAmount(bill.getDiscountAmount())
+                                .surchargeAmount(bill.getSurchargeAmount() != null ? bill.getSurchargeAmount() : BigDecimal.ZERO)
+                                .surchargeNote(bill.getSurchargeNote())
                                 .totalAmount(bill.getTotalAmount())
                                 .items(itemResponses)
                                 .payments(paymentResponses)
@@ -547,5 +577,13 @@ public class BillServiceImpl implements BillService {
                                 .openedAt(openedAt)
                                 .closedAt(closedAt)
                                 .build();
+        }
+
+        private static BigDecimal roundToNearestThousand(BigDecimal amount) {
+                if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+                        return BigDecimal.ZERO;
+                }
+                return amount.divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(1000));
         }
 }

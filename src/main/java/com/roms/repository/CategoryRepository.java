@@ -20,28 +20,28 @@ import java.util.Optional;
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select c from Category c order by c.displayOrder asc, c.id asc")
+    @Query("select c from Category c where c.isDeleted = false order by c.displayOrder asc, c.id asc")
     List<Category> findAllForUpdateInDisplayOrder();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select c from Category c where c.id = :id")
+    @Query("select c from Category c where c.id = :id and c.isDeleted = false")
     Optional<Category> findByIdForUpdate(@Param("id") Long id);
+
+    List<Category> findAllByIsDeletedFalse();
+
+    Page<Category> findAllByIsDeletedFalse(Pageable pageable);
+
+    Optional<Category> findByIdAndIsDeletedFalse(Long id);
 
     Page<Category> findByIsActiveTrue(Pageable pageable);
 
-    /**
-     * Tìm kiếm danh mục theo tên.
-     *
-     * @param name Tên danh mục
-     * @return Optional<Category>
-     */
+    Page<Category> findByIsActiveTrueAndIsDeletedFalse(Pageable pageable);
+
     Optional<Category> findByName(String name);
 
-    /**
-     * Kiểm tra xem tên danh mục đã tồn tại chưa.
-     *
-     * @param name Tên danh mục
-     * @return true nếu đã tồn tại
-     */
+    Optional<Category> findByNameAndIsDeletedFalse(String name);
+
     boolean existsByName(String name);
+
+    boolean existsByNameAndIsDeletedFalse(String name);
 }

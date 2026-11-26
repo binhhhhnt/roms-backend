@@ -18,6 +18,7 @@ public class QrOrderRequestResponse {
 
     private Long id;
     private Long serviceSessionId;
+    private String serviceSessionCode;
     private Long tableId;
     private String tableCode;
     private String area;

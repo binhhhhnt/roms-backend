@@ -27,6 +27,7 @@ import com.roms.repository.UserRepository;
 import com.roms.security.SecurityUtils;
 import com.roms.security.UserPrincipal;
 import com.roms.service.ServiceSessionService;
+import com.roms.service.SessionCodeGenerator;
 import com.roms.websocket.StompDestinations;
 import com.roms.websocket.StompEventPublisher;
 import lombok.extern.slf4j.Slf4j;
@@ -65,20 +66,8 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
         private final QrOrderRequestRepository qrOrderRequestRepository;
         private final StompEventPublisher stompEventPublisher;
         private final TableMapper tableMapper;
+        private final SessionCodeGenerator sessionCodeGenerator;
 
-        /**
-         * Khởi tạo ServiceSessionServiceImpl với đầy đủ các dependency cần thiết.
-         *
-         * @param sessionRepository         Repository thao tác dữ liệu phiên phục vụ
-         * @param tableRepository           Repository thao tác dữ liệu bàn ăn
-         * @param transferHistoryRepository Repository lưu trữ lịch sử chuyển bàn
-         * @param userRepository            Repository thao tác dữ liệu người dùng
-         * @param orderRepository           Repository kiểm tra trạng thái đơn hàng của
-         *                                  phiên
-         * @param stompEventPublisher       Bộ phát sự kiện STOMP sau khi commit
-         *                                  transaction
-         * @param tableMapper               Mapper chuyển đổi entity sang DTO
-         */
         public ServiceSessionServiceImpl(ServiceSessionRepository sessionRepository,
                         RestaurantTableRepository tableRepository,
                         TableTransferHistoryRepository transferHistoryRepository,
@@ -86,7 +75,8 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                         OrderRepository orderRepository,
                         QrOrderRequestRepository qrOrderRequestRepository,
                         StompEventPublisher stompEventPublisher,
-                        TableMapper tableMapper) {
+                        TableMapper tableMapper,
+                        SessionCodeGenerator sessionCodeGenerator) {
                 this.sessionRepository = sessionRepository;
                 this.tableRepository = tableRepository;
                 this.transferHistoryRepository = transferHistoryRepository;
@@ -95,6 +85,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
                 this.qrOrderRequestRepository = qrOrderRequestRepository;
                 this.stompEventPublisher = stompEventPublisher;
                 this.tableMapper = tableMapper;
+                this.sessionCodeGenerator = sessionCodeGenerator;
         }
 
         /**
@@ -152,6 +143,7 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
 
                 // 7. Tạo mới và lưu phiên phục vụ
                 ServiceSession session = ServiceSession.builder()
+                                .sessionCode(sessionCodeGenerator.nextSessionCode())
                                 .table(table)
                                 .status(ServiceSessionStatus.ACTIVE)
                                 .openedBy(openedByUser)
@@ -297,8 +289,9 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
         @Override
         @Transactional(readOnly = true)
         public PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status,
-                        Pageable pageable) {
-                Page<ServiceSession> sessionPage = sessionRepository.findWithFilters(tableId, status, pageable);
+                        String search, Pageable pageable) {
+                String trimmedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+                Page<ServiceSession> sessionPage = sessionRepository.findWithFilters(tableId, status, trimmedSearch, pageable);
                 return PageResponse.from(sessionPage, tableMapper::toSessionResponse);
         }
 

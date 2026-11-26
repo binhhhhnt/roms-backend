@@ -203,10 +203,10 @@ class MenuItemReadServiceTest {
     void everyRolePassesOnlyItsVisibleStatusesToDatabaseBeforePaging() {
         for (UserRole role : UserRole.values()) {
             authenticate(role);
-            boolean requireBom = (role == UserRole.SERVICE_STAFF);
+            boolean requireBom = (role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF);
             Set<MenuItemStatus> expected = switch (role) {
                 case OWNER, INVENTORY_STAFF -> EnumSet.allOf(MenuItemStatus.class);
-                case SERVICE_STAFF, KITCHEN_STAFF ->
+                case SERVICE_STAFF, CASHIER_STAFF, KITCHEN_STAFF ->
                     EnumSet.of(MenuItemStatus.AVAILABLE, MenuItemStatus.TEMPORARILY_UNAVAILABLE);
             };
             when(menus.findCatalog(3L, expected, false, requireBom, page))
@@ -223,7 +223,7 @@ class MenuItemReadServiceTest {
         var requestedPage = PageRequest.of(2, 5, Sort.by("name").and(Sort.by("id")));
         for (UserRole role : UserRole.values()) {
             authenticate(role);
-            boolean requireBom = (role == UserRole.SERVICE_STAFF);
+            boolean requireBom = (role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF);
             for (MenuItemStatus status : MenuItemStatus.values()) {
                 boolean permitted = role == UserRole.OWNER || role == UserRole.INVENTORY_STAFF
                         || (status == MenuItemStatus.AVAILABLE)

@@ -1,0 +1,6 @@
+-- ROMS: V13 Migration - Add CASHIER_STAFF role
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+
+ALTER TABLE users ADD CONSTRAINT users_role_check
+    CHECK (role IN ('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF', 'KITCHEN_STAFF', 'INVENTORY_STAFF'));

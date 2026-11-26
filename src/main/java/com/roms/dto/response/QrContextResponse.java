@@ -15,6 +15,7 @@ public class QrContextResponse {
     private String tableCode;
     private String area;
     private Long sessionId;
+    private String sessionCode;
     private String restaurantName;
     private String address;
 }

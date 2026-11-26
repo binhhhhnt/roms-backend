@@ -21,12 +21,12 @@ public interface TableService {
      * Trạng thái thời gian thực (realtimeStatus) được tính toán động (EMPTY, OCCUPIED, OUT_OF_SERVICE).
      *
      * @param isActive Trạng thái hoạt động (true/false, tùy chọn)
-     * @param area     Tên khu vực (tùy chọn)
-     * @param search   Từ khóa tìm kiếm theo mã bàn (tùy chọn)
+     * @param areaId   ID khu vực (tùy chọn)
+     * @param search   Từ khóa tìm kiếm theo mã bàn hoặc tên khu vực (tùy chọn)
      * @param pageable Thông tin phân trang và sắp xếp
      * @return PageResponse<TableResponse> Danh sách phân trang bàn ăn
      */
-    PageResponse<TableResponse> getTables(Boolean isActive, String area, String search, Pageable pageable);
+    PageResponse<TableResponse> getTables(Boolean isActive, Long areaId, String search, Pageable pageable);
 
     /**
      * Lấy thông tin chi tiết của một bàn ăn theo ID, kèm trạng thái thời gian thực và ID phiên đang phục vụ (nếu có).

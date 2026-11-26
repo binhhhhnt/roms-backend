@@ -44,7 +44,7 @@ public interface ServiceSessionService {
      * @param pageable Thông tin phân trang và sắp xếp
      * @return PageResponse<ServiceSessionResponse> Danh sách phân trang phiên phục vụ
      */
-    PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status, Pageable pageable);
+    PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status, String search, Pageable pageable);
 
     /**
      * Chuyển phiên phục vụ sang một bàn ăn khác.

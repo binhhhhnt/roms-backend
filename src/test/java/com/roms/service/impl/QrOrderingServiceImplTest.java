@@ -63,6 +63,7 @@ class QrOrderingServiceImplTest {
     @Mock private MenuItemImageMapper menuItemImageMapper;
     @Mock private CategoryMapper categoryMapper;
     @Mock private StompEventPublisher stompEventPublisher;
+    @Mock private com.roms.service.SessionCodeGenerator sessionCodeGenerator;
 
     @InjectMocks
     private QrOrderingServiceImpl qrOrderingService;
@@ -83,7 +84,7 @@ class QrOrderingServiceImplTest {
         table = RestaurantTable.builder()
                 .id(10L)
                 .tableCode("B01")
-                .area("Tang 1")
+                .area(Area.builder().id(1L).name("Tang 1").isActive(true).build())
                 .capacity(4)
                 .isActive(true)
                 .qrToken("token-b01")
@@ -91,10 +92,13 @@ class QrOrderingServiceImplTest {
 
         activeSession = ServiceSession.builder()
                 .id(100L)
+                .sessionCode("S-20261125-0001")
                 .table(table)
                 .status(ServiceSessionStatus.ACTIVE)
                 .openedAt(LocalDateTime.now())
                 .build();
+
+        lenient().when(sessionCodeGenerator.nextSessionCode()).thenReturn("S-20261125-0001");
 
         menuItem = MenuItem.builder()
                 .id(50L)

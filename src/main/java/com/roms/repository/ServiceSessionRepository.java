@@ -31,15 +31,23 @@ public interface ServiceSessionRepository extends JpaRepository<ServiceSession, 
            "WHERE s.id = :id")
     Optional<ServiceSession> findByIdForUpdate(@Param("id") Long id);
 
-    @Query("SELECT s FROM ServiceSession s " +
-           "JOIN FETCH s.table " +
+    @Query(value = "SELECT s FROM ServiceSession s " +
+           "JOIN FETCH s.table t " +
            "LEFT JOIN FETCH s.openedBy " +
            "LEFT JOIN FETCH s.closedBy " +
-           "WHERE (:tableId IS NULL OR s.table.id = :tableId) " +
-           "AND (:status IS NULL OR s.status = :status)")
+           "WHERE (:tableId IS NULL OR t.id = :tableId) " +
+           "AND (:status IS NULL OR s.status = :status) " +
+           "AND (:search IS NULL OR LOWER(s.sessionCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))",
+           countQuery = "SELECT COUNT(s) FROM ServiceSession s JOIN s.table t " +
+           "WHERE (:tableId IS NULL OR t.id = :tableId) " +
+           "AND (:status IS NULL OR s.status = :status) " +
+           "AND (:search IS NULL OR LOWER(s.sessionCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
     Page<ServiceSession> findWithFilters(
             @Param("tableId") Long tableId,
             @Param("status") ServiceSessionStatus status,
+            @Param("search") String search,
             Pageable pageable
     );
 

@@ -25,14 +25,14 @@ public class BillController {
     private final PrinterService printerService;
 
     @GetMapping("/sessions/{sessionId}/preview")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<BillPreviewResponse>> getBillPreview(@PathVariable Long sessionId) {
         BillPreviewResponse response = billService.getBillPreview(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin tạm tính hóa đơn thành công", response));
     }
 
     @PostMapping("/sessions/{sessionId}/checkout")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> checkout(
             @PathVariable Long sessionId,
             @Valid @RequestBody CheckoutBillRequest request) {
@@ -42,21 +42,21 @@ public class BillController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> getBillById(@PathVariable Long id) {
         BillResponse response = billService.getBillById(id);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin hóa đơn thành công", response));
     }
 
     @GetMapping("/sessions/{sessionId}")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<BillResponse>> getBillBySessionId(@PathVariable Long sessionId) {
         BillResponse response = billService.getBillBySessionId(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin hóa đơn theo phiên thành công", response));
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'CASHIER_STAFF', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<Page<BillResponse>>> getBills(
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
@@ -65,14 +65,14 @@ public class BillController {
     }
 
     @PostMapping("/{id}/print")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<Void>> printBill(@PathVariable Long id) {
         printerService.printBill(id);
         return ResponseEntity.ok(ApiResponse.success("Yêu cầu in hóa đơn đã được gửi tới máy in", null));
     }
 
     @PostMapping("/sessions/{sessionId}/print-proforma")
-    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
+    @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF', 'CASHIER_STAFF')")
     public ResponseEntity<ApiResponse<Void>> printProforma(@PathVariable Long sessionId) {
         printerService.printProforma(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Yêu cầu in phiếu tạm tính đã được gửi tới máy in", null));

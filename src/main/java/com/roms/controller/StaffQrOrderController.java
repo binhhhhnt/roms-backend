@@ -20,21 +20,21 @@ public class StaffQrOrderController {
     private final QrOrderingService qrOrderingService;
 
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<List<QrOrderRequestResponse>>> getPendingRequests() {
         return ResponseEntity.ok(ApiResponse.success("Pending QR order requests retrieved successfully",
                 qrOrderingService.getPendingRequests()));
     }
 
     @PostMapping("/{id}/confirm")
-    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<QrOrderRequestResponse>> confirmQrOrder(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("QR order request confirmed successfully",
                 qrOrderingService.confirmQrOrder(id)));
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<QrOrderRequestResponse>> cancelQrOrder(
             @PathVariable Long id,
             @Valid @RequestBody CancelQrOrderRequest request) {

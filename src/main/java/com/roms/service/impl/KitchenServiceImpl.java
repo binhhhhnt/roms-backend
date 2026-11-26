@@ -61,7 +61,8 @@ public class KitchenServiceImpl implements KitchenService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER && role != UserRole.SERVICE_STAFF) {
+        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER
+                && role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF) {
             throw new ForbiddenException("Role '" + role + "' cannot view kitchen orders");
         }
 
@@ -182,7 +183,8 @@ public class KitchenServiceImpl implements KitchenService {
                 .orElseThrow(() -> new ForbiddenException("Authentication required"));
 
         UserRole role = currentUser.getRole();
-        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER && role != UserRole.SERVICE_STAFF) {
+        if (role != UserRole.KITCHEN_STAFF && role != UserRole.OWNER
+                && role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF) {
             throw new ForbiddenException("Role '" + role + "' cannot update order item status");
         }
 
@@ -258,8 +260,8 @@ public class KitchenServiceImpl implements KitchenService {
         }
 
         if (current == OrderItemStatus.READY && target == OrderItemStatus.COMPLETED) {
-            if (role != UserRole.SERVICE_STAFF && role != UserRole.OWNER) {
-                throw new ForbiddenException("Only SERVICE_STAFF or OWNER can mark an item COMPLETED");
+            if (role != UserRole.SERVICE_STAFF && role != UserRole.CASHIER_STAFF && role != UserRole.OWNER) {
+                throw new ForbiddenException("Only SERVICE_STAFF, CASHIER_STAFF or OWNER can mark an item COMPLETED");
             }
             return;
         }

@@ -43,6 +43,10 @@ public class UpdateSettingRequest {
     @JsonAlias({"printReadyTicket", "print_ready_ticket"})
     private Boolean printReadyTicket;
 
+    @JsonProperty("print_kitchen_order_ticket")
+    @JsonAlias({"printKitchenOrderTicket", "print_kitchen_order_ticket"})
+    private Boolean printKitchenOrderTicket;
+
     @Size(max = 255, message = "bill_printer_name must not exceed 255 characters")
     @JsonProperty("bill_printer_name")
     @JsonAlias({"billPrinterName", "bill_printer_name"})

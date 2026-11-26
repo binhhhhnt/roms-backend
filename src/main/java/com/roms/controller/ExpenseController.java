@@ -25,7 +25,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/expenses")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('OWNER')")
+@PreAuthorize("hasAnyRole('OWNER', 'CASHIER_STAFF')")
 public class ExpenseController {
 
     private final ExpenseService expenseService;

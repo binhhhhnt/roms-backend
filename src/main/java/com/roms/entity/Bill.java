@@ -44,6 +44,13 @@ public class Bill {
     @Column(name = "discount_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Builder.Default
+    @Column(name = "surcharge_amount", nullable = false, precision = 14, scale = 2)
+    private BigDecimal surchargeAmount = BigDecimal.ZERO;
+
+    @Column(name = "surcharge_note", length = 255)
+    private String surchargeNote;
+
     @Column(name = "total_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal totalAmount;
 

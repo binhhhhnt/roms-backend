@@ -405,6 +405,14 @@ public class PrinterServiceImpl implements PrinterService {
                         y, startX, width);
             }
 
+            if (bill.getSurchargeAmount() != null && bill.getSurchargeAmount().compareTo(BigDecimal.ZERO) > 0) {
+                y = drawRow(g2d, "Phụ phí:", "+" + CURRENCY_FORMAT.format(bill.getSurchargeAmount()),
+                        y, startX, width);
+                if (bill.getSurchargeNote() != null && !bill.getSurchargeNote().isBlank()) {
+                    y = drawWrappedText(g2d, "  * " + bill.getSurchargeNote().trim(), y, startX, width);
+                }
+            }
+
             y = drawDivider(g2d, y, startX, width, false);
             g2d.setFont(new Font("SansSerif", Font.BOLD, 10));
             y = drawRow(g2d, "TỔNG THANH TOÁN:", CURRENCY_FORMAT.format(bill.getTotalAmount()), y, startX, width);
@@ -655,6 +663,29 @@ public class PrinterServiceImpl implements PrinterService {
         int x = startX + Math.max(0, (width - fm.stringWidth(text)) / 2);
         g2d.drawString(text, x, y);
         return y + fm.getHeight();
+    }
+
+    private static int drawWrappedText(Graphics2D g2d, String text, int y, int startX, int maxWidth) {
+        FontMetrics fm = g2d.getFontMetrics();
+        String[] words = text.split("\\s+");
+        StringBuilder line = new StringBuilder();
+        for (String word : words) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (fm.stringWidth(candidate) <= maxWidth) {
+                line = new StringBuilder(candidate);
+            } else {
+                if (!line.isEmpty()) {
+                    g2d.drawString(line.toString(), startX, y);
+                    y += fm.getHeight();
+                }
+                line = new StringBuilder(word);
+            }
+        }
+        if (!line.isEmpty()) {
+            g2d.drawString(line.toString(), startX, y);
+            y += fm.getHeight();
+        }
+        return y;
     }
 
     private static int drawRow(Graphics2D g2d, String left, String right, int y, int startX, int width) {

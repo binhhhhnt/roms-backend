@@ -47,6 +47,9 @@ public class RestaurantSettingServiceImpl implements RestaurantSettingService {
         if (request.getPrintReadyTicket() != null) {
             setting.setPrintReadyTicket(request.getPrintReadyTicket());
         }
+        if (request.getPrintKitchenOrderTicket() != null) {
+            setting.setPrintKitchenOrderTicket(request.getPrintKitchenOrderTicket());
+        }
         if (request.getBillPrinterName() != null) {
             String val = request.getBillPrinterName().trim();
             setting.setBillPrinterName(val.isEmpty() ? null : val);
@@ -87,6 +90,7 @@ public class RestaurantSettingServiceImpl implements RestaurantSettingService {
                                 .phone("0901 234 567")
                                 .receiptFooter("Cảm ơn quý khách và hẹn gặp lại! Wifi: ROMS_VIP / Pass: 88888888")
                                 .printReadyTicket(true)
+                                .printKitchenOrderTicket(false)
                                 .billPaperSize("K80")
                                 .readyTicketPaperSize("K80")
                                 .qrOrderingEnabled(true)

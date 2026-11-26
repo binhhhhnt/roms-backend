@@ -13,6 +13,7 @@ import java.util.List;
 @Builder
 public class BillPreviewResponse {
     private Long sessionId;
+    private String sessionCode;
     private String tableCode;
     private LocalDateTime openedAt;
     private List<BillPreviewItemDto> items;

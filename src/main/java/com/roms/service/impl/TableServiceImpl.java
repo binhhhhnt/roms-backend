@@ -8,12 +8,14 @@ import com.roms.dto.request.UpdateTableStatusRequest;
 import com.roms.dto.response.GenerateTableQrResponse;
 import com.roms.dto.response.RestaurantSettingResponse;
 import com.roms.dto.response.TableResponse;
+import com.roms.entity.Area;
 import com.roms.entity.RestaurantTable;
 import com.roms.entity.ServiceSession;
 import com.roms.enums.ServiceSessionStatus;
 import com.roms.exception.BusinessRuleException;
 import com.roms.exception.ResourceNotFoundException;
 import com.roms.mapper.TableMapper;
+import com.roms.repository.AreaRepository;
 import com.roms.repository.RestaurantTableRepository;
 import com.roms.repository.ServiceSessionRepository;
 import com.roms.service.RestaurantSettingService;
@@ -43,23 +45,18 @@ import java.util.UUID;
 public class TableServiceImpl implements TableService {
 
     private final RestaurantTableRepository tableRepository;
+    private final AreaRepository areaRepository;
     private final ServiceSessionRepository sessionRepository;
     private final TableMapper tableMapper;
     private final RestaurantSettingService restaurantSettingService;
 
-    /**
-     * Khởi tạo TableServiceImpl với các dependency cần thiết.
-     *
-     * @param tableRepository          Repository thao tác dữ liệu bảng restaurant_tables
-     * @param sessionRepository        Repository truy vấn phiên phục vụ của bàn
-     * @param tableMapper              Mapper chuyển đổi giữa entity và DTO
-     * @param restaurantSettingService Service cấu hình nhà hàng
-     */
     public TableServiceImpl(RestaurantTableRepository tableRepository,
+                            AreaRepository areaRepository,
                             ServiceSessionRepository sessionRepository,
                             TableMapper tableMapper,
                             RestaurantSettingService restaurantSettingService) {
         this.tableRepository = tableRepository;
+        this.areaRepository = areaRepository;
         this.sessionRepository = sessionRepository;
         this.tableMapper = tableMapper;
         this.restaurantSettingService = restaurantSettingService;
@@ -77,15 +74,11 @@ public class TableServiceImpl implements TableService {
      */
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<TableResponse> getTables(Boolean isActive, String area, String search, Pageable pageable) {
-        // Chuẩn hóa chuỗi tìm kiếm và khu vực, loại bỏ khoảng trắng thừa
+    public PageResponse<TableResponse> getTables(Boolean isActive, Long areaId, String search, Pageable pageable) {
         String trimmedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
-        String trimmedArea = (area != null && !area.trim().isEmpty()) ? area.trim() : null;
 
-        // Truy vấn phân trang từ cơ sở dữ liệu
-        Page<RestaurantTable> tablePage = tableRepository.findWithFilters(isActive, trimmedArea, trimmedSearch, pageable);
+        Page<RestaurantTable> tablePage = tableRepository.findWithFilters(isActive, areaId, trimmedSearch, pageable);
 
-        // Ánh xạ sang DTO kèm kiểm tra phiên phục vụ ACTIVE hiện tại
         return PageResponse.from(tablePage, table -> {
             ServiceSession activeSession = sessionRepository
                     .findByTableIdAndStatus(table.getId(), ServiceSessionStatus.ACTIVE)
@@ -94,21 +87,12 @@ public class TableServiceImpl implements TableService {
         });
     }
 
-    /**
-     * Lấy thông tin chi tiết một bàn ăn theo ID, kèm trạng thái thời gian thực và ID phiên ACTIVE (nếu có).
-     *
-     * @param id Mã ID của bàn ăn
-     * @return TableResponse Thông tin bàn ăn
-     * @throws ResourceNotFoundException Nếu không tìm thấy bàn ăn theo ID
-     */
     @Override
     @Transactional(readOnly = true)
     public TableResponse getTableById(Long id) {
-        // Tìm kiếm bàn ăn theo ID
-        RestaurantTable table = tableRepository.findById(id)
+        RestaurantTable table = tableRepository.findWithAreaById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Table not found with id: " + id));
 
-        // Kiểm tra bàn có phiên phục vụ nào đang ACTIVE không
         ServiceSession activeSession = sessionRepository
                 .findByTableIdAndStatus(table.getId(), ServiceSessionStatus.ACTIVE)
                 .orElse(null);
@@ -116,69 +100,62 @@ public class TableServiceImpl implements TableService {
         return tableMapper.toResponseWithStatus(table, activeSession);
     }
 
-    /**
-     * Tạo bàn ăn mới trong nhà hàng.
-     * Mã bàn (tableCode) phải là duy nhất, không được trùng lặp.
-     * Mặc định bàn mới tạo sẽ ở trạng thái hoạt động (isActive = true).
-     *
-     * @param request DTO chứa thông tin tạo bàn (tableCode, capacity, area)
-     * @return TableResponse Thông tin bàn ăn vừa tạo
-     * @throws BusinessRuleException Nếu mã bàn đã tồn tại trong hệ thống
-     */
     @Override
     @Transactional
     public TableResponse createTable(CreateTableRequest request) {
-        String tableCode = request.getTableCode().trim();
+        // Lock Area first (Area -> Table ordering) to prevent race condition with area deactivation.
+        Area area = areaRepository.findByIdForUpdate(request.getAreaId())
+                .orElseThrow(() -> new ResourceNotFoundException("Area not found with id: " + request.getAreaId()));
 
-        // Kiểm tra trùng lặp mã bàn
+        if (!Boolean.TRUE.equals(area.getIsActive())) {
+            throw new BusinessRuleException("Cannot assign table to an inactive area: " + area.getName(), "AREA_INACTIVE");
+        }
+
+        String tableCode = request.getTableCode().trim();
         if (tableRepository.existsByTableCode(tableCode)) {
             throw new BusinessRuleException("Table code is already in use: " + tableCode, "DUPLICATE_TABLE_CODE");
         }
 
-        // Tạo thực thể RestaurantTable mới
         RestaurantTable table = RestaurantTable.builder()
                 .tableCode(tableCode)
                 .capacity(request.getCapacity())
-                .area(request.getArea() != null ? request.getArea().trim() : null)
+                .area(area)
                 .isActive(true)
                 .build();
 
         RestaurantTable savedTable = tableRepository.save(table);
-        log.info("Created table id: {}, code: {}", savedTable.getId(), savedTable.getTableCode());
+        log.info("Created table id: {}, code: {}, areaId: {}", savedTable.getId(), savedTable.getTableCode(), area.getId());
 
         return tableMapper.toResponseWithStatus(savedTable, null);
     }
 
-    /**
-     * Cập nhật thông tin bàn ăn (mã bàn, số chỗ ngồi, khu vực).
-     * Nếu đổi mã bàn mới, phải đảm bảo mã bàn mới không trùng với các bàn khác.
-     *
-     * @param id      Mã ID của bàn ăn cần sửa
-     * @param request Thông tin cập nhật mới
-     * @return TableResponse Bàn ăn sau khi cập nhật
-     * @throws ResourceNotFoundException Nếu không tìm thấy bàn ăn
-     * @throws BusinessRuleException Nếu mã bàn mới trùng với bàn khác
-     */
     @Override
     @Transactional
     public TableResponse updateTable(Long id, UpdateTableRequest request) {
-        RestaurantTable table = tableRepository.findById(id)
+        // Lock Area before loading/modifying Table to keep consistent lock order (Area -> Table).
+        Area targetArea = areaRepository.findByIdForUpdate(request.getAreaId())
+                .orElseThrow(() -> new ResourceNotFoundException("Area not found with id: " + request.getAreaId()));
+
+        RestaurantTable table = tableRepository.findWithAreaById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Table not found with id: " + id));
 
+        boolean isChangingArea = table.getArea() == null || !targetArea.getId().equals(table.getArea().getId());
+        if (isChangingArea && !Boolean.TRUE.equals(targetArea.getIsActive())) {
+            throw new BusinessRuleException("Cannot assign table to an inactive area: " + targetArea.getName(), "AREA_INACTIVE");
+        }
+
         String newTableCode = request.getTableCode().trim();
-        // Kiểm tra xem mã bàn mới có bị trùng với bàn khác không
         if (!newTableCode.equals(table.getTableCode()) && tableRepository.existsByTableCode(newTableCode)) {
             throw new BusinessRuleException("Table code is already in use: " + newTableCode, "DUPLICATE_TABLE_CODE");
         }
 
         table.setTableCode(newTableCode);
         table.setCapacity(request.getCapacity());
-        table.setArea(request.getArea() != null ? request.getArea().trim() : null);
+        table.setArea(targetArea);
 
         RestaurantTable updatedTable = tableRepository.save(table);
-        log.info("Updated table id: {}, code: {}", updatedTable.getId(), updatedTable.getTableCode());
+        log.info("Updated table id: {}, code: {}, areaId: {}", updatedTable.getId(), updatedTable.getTableCode(), targetArea.getId());
 
-        // Lấy lại trạng thái phiên ACTIVE hiện tại để trả về thông tin đầy đủ
         ServiceSession activeSession = sessionRepository
                 .findByTableIdAndStatus(table.getId(), ServiceSessionStatus.ACTIVE)
                 .orElse(null);
@@ -262,7 +239,7 @@ public class TableServiceImpl implements TableService {
                 .map(t -> GenerateTableQrResponse.TableQrItem.builder()
                         .tableId(t.getId())
                         .tableCode(t.getTableCode())
-                        .area(t.getArea())
+                        .area(t.getArea() != null ? t.getArea().getName() : null)
                         .qrToken(t.getQrToken())
                         .build())
                 .toList();

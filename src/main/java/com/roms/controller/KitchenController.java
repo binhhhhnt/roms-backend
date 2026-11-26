@@ -24,7 +24,7 @@ public class KitchenController {
     private final KitchenService kitchenService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<List<KitchenOrderResponse>>> getOrders(
             @RequestParam(name = "status", required = false) OrderStatus status) {
         List<KitchenOrderResponse> response = kitchenService.getKitchenOrders(status);
@@ -32,7 +32,7 @@ public class KitchenController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<KitchenOrderResponse>> getOrderById(@PathVariable("id") Long id) {
         KitchenOrderResponse response = kitchenService.getKitchenOrderById(id);
         return ResponseEntity.ok(ApiResponse.success("Kitchen order retrieved successfully", response));
@@ -60,7 +60,7 @@ public class KitchenController {
     }
 
     @PatchMapping("/{id}/items/{itemId}/status")
-    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'OWNER')")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
     public ResponseEntity<ApiResponse<OrderItemResponse>> updateOrderItemStatus(
             @PathVariable("id") Long id,
             @PathVariable("itemId") Long itemId,

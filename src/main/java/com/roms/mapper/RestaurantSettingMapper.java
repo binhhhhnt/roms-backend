@@ -19,6 +19,7 @@ public class RestaurantSettingMapper {
                 .phone(setting.getPhone())
                 .receiptFooter(setting.getReceiptFooter())
                 .printReadyTicket(setting.getPrintReadyTicket())
+                .printKitchenOrderTicket(setting.getPrintKitchenOrderTicket())
                 .billPrinterName(setting.getBillPrinterName())
                 .billPaperSize(setting.getBillPaperSize())
                 .readyTicketPrinterName(setting.getReadyTicketPrinterName())

@@ -171,34 +171,34 @@ public final class StompDestinations {
             return role == UserRole.KITCHEN_STAFF;
         }
 
-        // Tables topic: service staff
+        // Tables topic: service staff, cashier staff
         if (dest.equals(TOPIC_TABLES) || dest.startsWith("/topic/tables/")) {
-            return role == UserRole.SERVICE_STAFF;
+            return role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF;
         }
 
-        // Bills topic: service staff or owner (owner handled above)
+        // Bills topic: service staff, cashier staff or owner (owner handled above)
         if (dest.equals(TOPIC_BILLS) || dest.startsWith("/topic/bills/")) {
-            return role == UserRole.SERVICE_STAFF;
+            return role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF;
         }
 
-        // Service ready dishes & staff QR orders topics: service staff
+        // Service ready dishes & staff QR orders topics: service staff, cashier staff
         if (dest.equals(TOPIC_SERVICE_READY_DISHES)
                 || dest.startsWith("/topic/service/")
                 || dest.equals(TOPIC_STAFF_QR_ORDERS)
                 || dest.startsWith("/topic/staff/")) {
-            return role == UserRole.SERVICE_STAFF;
+            return role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF;
         }
 
-        // Menu updates topic: owner, kitchen staff, service staff
+        // Menu updates topic: owner, kitchen staff, service staff, cashier staff
         if (dest.equals(TOPIC_MENU) || dest.startsWith("/topic/menu/")) {
             return role == UserRole.OWNER || role == UserRole.KITCHEN_STAFF
-                    || role == UserRole.SERVICE_STAFF;
+                    || role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF;
         }
 
-        // Session orders & QR session topics: service staff (owner handled above)
+        // Session orders & QR session topics: service staff, cashier staff (owner handled above)
         Long parsedSessionId = extractSessionId(dest);
         if (parsedSessionId != null || extractQrSessionId(dest) != null) {
-            return role == UserRole.SERVICE_STAFF;
+            return role == UserRole.SERVICE_STAFF || role == UserRole.CASHIER_STAFF;
         }
 
         // User personal notifications queue: any authenticated user

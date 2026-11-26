@@ -15,12 +15,15 @@ public class BillResponse {
     private Long id;
     private String billCode;
     private Long sessionId;
+    private String sessionCode;
     private String tableCode;
     private BigDecimal amountBeforeDiscount;
     private Long promotionId;
     private String promotionCode;
     private String promotionName;
     private BigDecimal discountAmount;
+    private BigDecimal surchargeAmount;
+    private String surchargeNote;
     private BigDecimal totalAmount;
     private List<BillItemResponse> items;
     private List<PaymentResponse> payments;

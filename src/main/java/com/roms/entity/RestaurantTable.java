@@ -17,12 +17,12 @@ public class RestaurantTable {
     public RestaurantTable() {
     }
 
-    public RestaurantTable(Long id, String tableCode, Integer capacity, String area,
+    public RestaurantTable(Long id, String tableCode, Integer capacity, Area area,
                            Boolean isActive, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this(id, tableCode, capacity, area, isActive, null, createdAt, updatedAt);
     }
 
-    public RestaurantTable(Long id, String tableCode, Integer capacity, String area,
+    public RestaurantTable(Long id, String tableCode, Integer capacity, Area area,
                            Boolean isActive, String qrToken, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.tableCode = tableCode;
@@ -44,8 +44,9 @@ public class RestaurantTable {
     @Column(name = "capacity", nullable = false)
     private Integer capacity;
 
-    @Column(name = "area", length = 100)
-    private String area;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "area_id", nullable = false)
+    private Area area;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

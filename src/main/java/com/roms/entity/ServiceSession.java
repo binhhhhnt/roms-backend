@@ -17,9 +17,10 @@ public class ServiceSession {
     public ServiceSession() {
     }
 
-    public ServiceSession(Long id, RestaurantTable table, ServiceSessionStatus status,
+    public ServiceSession(Long id, String sessionCode, RestaurantTable table, ServiceSessionStatus status,
                           LocalDateTime openedAt, User openedBy, LocalDateTime closedAt, User closedBy) {
         this.id = id;
+        this.sessionCode = sessionCode;
         this.table = table;
         this.status = status != null ? status : ServiceSessionStatus.ACTIVE;
         this.openedAt = openedAt;
@@ -31,6 +32,9 @@ public class ServiceSession {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "session_code", nullable = false, unique = true, length = 30)
+    private String sessionCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "table_id", nullable = false)
