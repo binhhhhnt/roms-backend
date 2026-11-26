@@ -71,10 +71,12 @@ class CatalogDeletionServiceTest {
 
     @Test
     void deletesEmptyCategoryAndReturnsNoContent() throws Exception {
-        existingCategory();
+        var cat = Category.builder().id(3L).build();
+        when(categories.findAllForUpdateInDisplayOrder()).thenReturn(List.of(cat));
         mvc.perform(delete("/api/categories/3")).andExpect(status().isNoContent()).andExpect(content().string(""));
-        verify(categories).delete(any(Category.class));
-        verify(categories).flush();
+        assertThat(cat.getIsDeleted()).isTrue();
+        assertThat(cat.getIsActive()).isFalse();
+        verify(categories).saveAll(List.of(cat));
         verify(invalidator).afterCommit();
     }
 
@@ -97,13 +99,15 @@ class CatalogDeletionServiceTest {
         var last = Category.builder().id(40L).displayOrder(4).build();
         when(categories.findAllForUpdateInDisplayOrder()).thenReturn(List.of(first, removed, paused, last));
         service.deleteCategory(20L);
+        assertThat(removed.getIsDeleted()).isTrue();
+        assertThat(removed.getIsActive()).isFalse();
         assertThat(first.getDisplayOrder()).isEqualTo(1);
         assertThat(paused.getDisplayOrder()).isEqualTo(2);
         assertThat(last.getDisplayOrder()).isEqualTo(3);
         assertThat(paused.getId()).isEqualTo(30L);
         assertThat(paused.getIsActive()).isFalse();
-        verify(categories).delete(removed);
-        verify(categories).saveAll(List.of(paused, last));
+        verify(categories, never()).delete(any());
+        verify(categories).saveAll(List.of(removed, paused, last));
         verify(invalidator).afterCommit();
     }
 
@@ -116,7 +120,7 @@ class CatalogDeletionServiceTest {
         service.deleteCategory(10L);
         assertThat(second.getDisplayOrder()).isEqualTo(1);
         assertThat(third.getDisplayOrder()).isEqualTo(2);
-        verify(categories).saveAll(List.of(second, third));
+        verify(categories).saveAll(List.of(first, second, third));
     }
 
     @Test
@@ -126,7 +130,7 @@ class CatalogDeletionServiceTest {
         when(categories.findAllForUpdateInDisplayOrder()).thenReturn(List.of(first, last));
         service.deleteCategory(20L);
         assertThat(first.getDisplayOrder()).isEqualTo(1);
-        verify(categories, never()).saveAll(any());
+        verify(categories).saveAll(List.of(last));
     }
 
     @Test
@@ -138,7 +142,7 @@ class CatalogDeletionServiceTest {
         when(categories.findAllForUpdateInDisplayOrder()).thenReturn(List.of(first, tied, removed, last));
         service.deleteCategory(30L);
         assertThat(List.of(first, tied, last)).extracting(Category::getDisplayOrder).containsExactly(1, 2, 3);
-        verify(categories).saveAll(List.of(first, tied, last));
+        verify(categories).saveAll(List.of(removed, first, tied, last));
     }
 
     @Test
@@ -146,7 +150,7 @@ class CatalogDeletionServiceTest {
         var removed = Category.builder().id(10L).displayOrder(1).build();
         var last = Category.builder().id(20L).displayOrder(2).build();
         when(categories.findAllForUpdateInDisplayOrder()).thenReturn(List.of(removed, last));
-        doThrow(new DataIntegrityViolationException("foreign key")).when(categories).flush();
+        when(menus.existsByCategoryIdAndIsDeletedFalse(10L)).thenReturn(true);
         assertThatThrownBy(() -> service.deleteCategory(10L)).isInstanceOf(BusinessRuleException.class);
         assertThat(last.getDisplayOrder()).isEqualTo(2);
         verify(categories, never()).saveAll(any());
@@ -177,10 +181,11 @@ class CatalogDeletionServiceTest {
         mvc.perform(delete("/api/menu-items/7")).andExpect(status().isNoContent());
         assertThat(menu.getIsDeleted()).isTrue();
         assertThat(menu.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
+        verify(recipes).deleteByMenuItemId(7L);
+        verify(recipes).flush();
         verify(menus).save(menu);
         verify(menus, never()).delete(any());
         verify(invalidator).afterCommit();
-        verifyNoInteractions(recipes, images, imageService);
     }
 
     @Test
@@ -195,12 +200,15 @@ class CatalogDeletionServiceTest {
     }
 
     @Test
-    void concurrentReferenceConflictIsTranslatedAndDoesNotInvalidate() throws Exception {
-        existingCategory();
-        doThrow(new DataIntegrityViolationException("foreign key")).when(categories).flush();
-        mvc.perform(delete("/api/categories/3")).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("CATEGORY_IN_USE"));
-        verifyNoInteractions(invalidator);
+    void concurrentReferenceConflictFallsBackToSoftDeleteForMenuItem() throws Exception {
+        var menu = MenuItem.builder().id(7L).status(MenuItemStatus.AVAILABLE).build();
+        when(menus.findByIdForUpdate(7L)).thenReturn(Optional.of(menu));
+        doThrow(new DataIntegrityViolationException("foreign key")).when(menus).flush();
+        mvc.perform(delete("/api/menu-items/7")).andExpect(status().isNoContent());
+        assertThat(menu.getIsDeleted()).isTrue();
+        assertThat(menu.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
+        verify(menus).save(menu);
+        verify(invalidator).afterCommit();
     }
 
     @Test
