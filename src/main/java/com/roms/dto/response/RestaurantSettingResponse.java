@@ -54,6 +54,14 @@ public class RestaurantSettingResponse {
         return printReadyTicket;
     }
 
+    @JsonProperty("print_kitchen_order_ticket")
+    private Boolean printKitchenOrderTicket;
+
+    @JsonProperty("printKitchenOrderTicket")
+    public Boolean getPrintKitchenOrderTicketCamel() {
+        return printKitchenOrderTicket;
+    }
+
     @JsonProperty("bill_printer_name")
     private String billPrinterName;
 

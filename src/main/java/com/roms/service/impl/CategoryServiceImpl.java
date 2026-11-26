@@ -47,7 +47,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(Long id, CategoryWriteRequest request) {
         CatalogAccess.requireOwner();
         if (id == null || id <= 0) throw new ValidationException("Category id must be positive");
-        Category category = categoryRepository.findById(id)
+        Category category = categoryRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
         categoryMapper.updateEntity(request, category);
         Category saved = categoryRepository.save(category);
@@ -60,8 +60,8 @@ public class CategoryServiceImpl implements CategoryService {
         UserRole role = currentRole();
         Pageable normalized = normalizePageable(pageable);
         Page<Category> categories = role == UserRole.TABLE_ACCOUNT
-                ? categoryRepository.findByIsActiveTrue(normalized)
-                : categoryRepository.findAll(normalized);
+                ? categoryRepository.findByIsActiveTrueAndIsDeletedFalse(normalized)
+                : categoryRepository.findAllByIsDeletedFalse(normalized);
         return PageResponse.from(categories, categoryMapper::toResponse);
     }
 
@@ -71,7 +71,7 @@ public class CategoryServiceImpl implements CategoryService {
         if (id == null || id <= 0) {
             throw new ValidationException("Category id must be positive");
         }
-        Category category = categoryRepository.findById(id)
+        Category category = categoryRepository.findByIdAndIsDeletedFalse(id)
                 .filter(value -> role != UserRole.TABLE_ACCOUNT || Boolean.TRUE.equals(value.getIsActive()))
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
         return categoryMapper.toResponse(category);

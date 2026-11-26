@@ -23,29 +23,31 @@ import java.util.Optional;
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
     @EntityGraph(attributePaths = "category")
-    @Query("select m from MenuItem m")
+    @Query("select m from MenuItem m where m.isDeleted = false")
     List<MenuItem> findAllForExcelImport();
 
     boolean existsByCategoryId(Long categoryId);
 
+    boolean existsByCategoryIdAndIsDeletedFalse(Long categoryId);
+
     @EntityGraph(attributePaths = {"category", "taxCategory"})
-    @Query("select m from MenuItem m where (:categoryId is null or m.category.id = :categoryId) "
-            + "and m.status in :statuses and (:tablet = false or m.category.isActive = true) "
+    @Query("select m from MenuItem m where m.isDeleted = false and m.category.isDeleted = false "
+            + "and (:categoryId is null or m.category.id = :categoryId) "
+            + "and m.status in :statuses and (:onlyActiveCategories = false or m.category.isActive = true) "
             + "and (:requireBom = false or exists (select 1 from RecipeItem r where r.menuItem = m))")
     Page<MenuItem> findCatalog(@Param("categoryId") Long categoryId,
                              @Param("statuses") Collection<MenuItemStatus> statuses,
-                             @Param("tablet") boolean tablet,
+                             @Param("onlyActiveCategories") boolean onlyActiveCategories,
                              @Param("requireBom") boolean requireBom,
                              Pageable pageable);
 
     @EntityGraph(attributePaths = {"category", "taxCategory"})
-    @Query("select m from MenuItem m where m.id = :id")
+    @Query("select m from MenuItem m where m.id = :id and m.isDeleted = false and m.category.isDeleted = false")
     Optional<MenuItem> findCatalogById(@Param("id") Long id);
 
-    /**
-     * Tìm kiếm món ăn theo tên.
-     */
     Optional<MenuItem> findByName(String name);
+
+    Optional<MenuItem> findByNameAndIsDeletedFalse(String name);
 
     /**
      * Tìm danh sách món ăn theo trạng thái kinh doanh.
@@ -56,8 +58,10 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     List<MenuItem> findByStatus(MenuItemStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select m from MenuItem m where m.id = :id")
+    @Query("select m from MenuItem m where m.id = :id and m.isDeleted = false")
     Optional<MenuItem> findByIdForUpdate(@Param("id") Long id);
+
+    Optional<MenuItem> findByIdAndIsDeletedFalse(Long id);
 
     /**
      * Lấy danh sách món ăn loại trừ trạng thái chỉ định (thường dùng để loại DISCONTINUED),
@@ -66,7 +70,7 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      * @param status Trạng thái cần loại trừ
      * @return Danh sách món ăn kèm Category
      */
-    @Query("SELECT m FROM MenuItem m JOIN FETCH m.category WHERE m.status != :status")
+    @Query("SELECT m FROM MenuItem m JOIN FETCH m.category WHERE m.isDeleted = false AND m.category.isDeleted = false AND m.status != :status")
     List<MenuItem> findByStatusNotWithCategory(@Param("status") MenuItemStatus status);
 
     /**
@@ -83,12 +87,12 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      *
      * @return Danh sách món ăn nổi bật kèm Category
      */
-    @Query("SELECT m FROM MenuItem m JOIN FETCH m.category WHERE m.isFeatured = true AND m.status = 'AVAILABLE'")
+    @Query("SELECT m FROM MenuItem m JOIN FETCH m.category WHERE m.isDeleted = false AND m.category.isDeleted = false AND m.isFeatured = true AND m.status = 'AVAILABLE'")
     List<MenuItem> findFeaturedAvailableWithCategory();
 
     /**
      * Truy xuất toàn bộ danh mục món ăn kèm danh mục và phân loại thuế để xuất Excel, tránh N+1.
      */
-    @Query("SELECT m FROM MenuItem m LEFT JOIN FETCH m.category LEFT JOIN FETCH m.taxCategory ORDER BY m.id ASC")
+    @Query("SELECT m FROM MenuItem m LEFT JOIN FETCH m.category LEFT JOIN FETCH m.taxCategory WHERE m.isDeleted = false ORDER BY m.id ASC")
     List<MenuItem> findAllWithCategoryAndTaxCategory();
 }

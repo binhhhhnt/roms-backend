@@ -57,7 +57,7 @@ class CategoryControllerTest {
         authenticate(UserRole.TABLE_ACCOUNT);
         var pageable = PageRequest.of(0, 20, Sort.by("displayOrder").and(Sort.by("id")));
         var category = Category.builder().id(7L).name("Main dishes").displayOrder(2).isActive(true).build();
-        when(repository.findByIsActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(category), pageable, 1));
+        when(repository.findByIsActiveTrueAndIsDeletedFalse(pageable)).thenReturn(new PageImpl<>(List.of(category), pageable, 1));
 
         mvc.perform(get("/api/categories"))
                 .andExpect(status().isOk())
@@ -74,16 +74,16 @@ class CategoryControllerTest {
     void explicitPageSizeAndSortReachRepository() throws Exception {
         authenticate(UserRole.OWNER);
         var pageable = PageRequest.of(2, 5, Sort.by(Sort.Order.desc("name"), Sort.Order.asc("id")));
-        when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+        when(repository.findAllByIsDeletedFalse(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
         mvc.perform(get("/api/categories").param("page", "2").param("size", "5").param("sort", "name,desc"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.page").value(2));
-        verify(repository).findAll(pageable);
+        verify(repository).findAllByIsDeletedFalse(pageable);
     }
 
     @Test
     void staffDetailReturnsInactiveCategory() throws Exception {
         authenticate(UserRole.SERVICE_STAFF);
-        when(repository.findById(7L)).thenReturn(Optional.of(Category.builder().id(7L).name("Hidden")
+        when(repository.findByIdAndIsDeletedFalse(7L)).thenReturn(Optional.of(Category.builder().id(7L).name("Hidden")
                 .description("Description").displayOrder(1).isActive(false).build()));
         mvc.perform(get("/api/categories/7"))
                 .andExpect(status().isOk())
@@ -96,7 +96,7 @@ class CategoryControllerTest {
     @Test
     void tabletInactiveDetailReturns404Envelope() throws Exception {
         authenticate(UserRole.TABLE_ACCOUNT);
-        when(repository.findById(7L)).thenReturn(Optional.of(Category.builder().id(7L).isActive(false).build()));
+        when(repository.findByIdAndIsDeletedFalse(7L)).thenReturn(Optional.of(Category.builder().id(7L).isActive(false).build()));
         mvc.perform(get("/api/categories/7"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))

@@ -65,6 +65,9 @@ class OrderServiceImplTest {
     private ServiceSessionRepository serviceSessionRepository;
 
     @Mock
+    private com.roms.repository.BillRepository billRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock

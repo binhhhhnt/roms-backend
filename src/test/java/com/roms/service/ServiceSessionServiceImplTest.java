@@ -6,6 +6,7 @@ import com.roms.dto.event.TableTransferEvent;
 import com.roms.dto.request.TransferTableRequest;
 import com.roms.dto.response.ServiceSessionResponse;
 import com.roms.dto.response.TableTransferHistoryResponse;
+import com.roms.entity.Area;
 import com.roms.entity.RestaurantTable;
 import com.roms.entity.ServiceSession;
 import com.roms.entity.TableTransferHistory;
@@ -74,6 +75,9 @@ class ServiceSessionServiceImplTest {
         @Mock
         private TableMapper tableMapper;
 
+        @Mock
+        private com.roms.service.SessionCodeGenerator sessionCodeGenerator;
+
         @InjectMocks
         private ServiceSessionServiceImpl sessionService;
 
@@ -113,7 +117,7 @@ class ServiceSessionServiceImplTest {
                                 .id(1L)
                                 .tableCode("T01")
                                 .capacity(4)
-                                .area("Main Hall")
+                                .area(Area.builder().id(1L).name("Main Hall").isActive(true).build())
                                 .isActive(true)
                                 .build();
 
@@ -121,7 +125,7 @@ class ServiceSessionServiceImplTest {
                                 .id(2L)
                                 .tableCode("T02")
                                 .capacity(6)
-                                .area("VIP")
+                                .area(Area.builder().id(2L).name("VIP").isActive(true).build())
                                 .isActive(true)
                                 .build();
 

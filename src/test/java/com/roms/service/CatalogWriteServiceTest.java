@@ -66,13 +66,13 @@ class CatalogWriteServiceTest {
     }
     @Test void categoryUpdateCanDeactivateWithoutDeleting() {
         var category = Category.builder().id(3L).name("Old").isActive(true).build();
-        when(categories.findById(3L)).thenReturn(Optional.of(category));
+        when(categories.findByIdAndIsDeletedFalse(3L)).thenReturn(Optional.of(category));
         when(categories.save(any())).thenAnswer(call -> call.getArgument(0));
         assertThat(categoryService.updateCategory(3L, categoryRequest()).getIsActive()).isFalse();
         verify(categories, never()).delete(any());
     }
     @Test void menuCreateDefaultsToDiscontinuedAndKeepsPrecisePrice() {
-        when(categories.findById(3L)).thenReturn(Optional.of(Category.builder().id(3L).build()));
+        when(categories.findByIdAndIsDeletedFalse(3L)).thenReturn(Optional.of(Category.builder().id(3L).build()));
         when(menus.save(any())).thenAnswer(call -> { MenuItem menu = call.getArgument(0); menu.setId(8L); return menu; });
         var response = menuService.createMenuItem(menuRequest());
         assertThat(response.getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
@@ -84,7 +84,7 @@ class CatalogWriteServiceTest {
     @Test void updatePreservesStatusAndDoesNotTouchOrderHistory() {
         var menu = MenuItem.builder().id(8L).status(MenuItemStatus.DISCONTINUED).build();
         when(menus.findByIdForUpdate(8L)).thenReturn(Optional.of(menu));
-        when(categories.findById(3L)).thenReturn(Optional.of(Category.builder().id(3L).build()));
+        when(categories.findByIdAndIsDeletedFalse(3L)).thenReturn(Optional.of(Category.builder().id(3L).build()));
         when(menus.save(any())).thenAnswer(call -> call.getArgument(0));
         assertThat(menuService.updateMenuItem(8L, menuRequest()).getStatus()).isEqualTo(MenuItemStatus.DISCONTINUED);
         verify(menus).findByIdForUpdate(8L);

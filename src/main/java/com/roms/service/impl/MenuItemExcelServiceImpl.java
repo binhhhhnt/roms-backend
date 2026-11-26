@@ -94,7 +94,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
             autoFitColumns(sheet, HEADERS.length);
 
             // Data Validation: Dropdown list for Category (Column 1)
-            List<Category> categories = categoryRepository.findAll();
+            List<Category> categories = categoryRepository.findAllByIsDeletedFalse();
             if (!categories.isEmpty()) {
                 Sheet refSheet = workbook.createSheet("Categories_Ref");
                 int refRow = 0;
@@ -268,7 +268,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
 
                     // Resolve Category - MUST exist in DB, no auto-create
                     String finalCatName = categoryName;
-                    Optional<Category> categoryOpt = categoryRepository.findByName(finalCatName);
+                    Optional<Category> categoryOpt = categoryRepository.findByNameAndIsDeletedFalse(finalCatName);
                     if (categoryOpt.isEmpty()) {
                         errors.add("Dòng " + displayRowNumber + ": Danh mục '" + finalCatName + "' không tồn tại trong hệ thống. Vui lòng chọn danh mục hợp lệ.");
                         continue;
@@ -279,7 +279,7 @@ public class MenuItemExcelServiceImpl implements MenuItemExcelService {
                     TaxCategory taxCategory = taxCategoryService.findOrCreateByRate(vatRate);
 
                     // Option A: Update if duplicate name, otherwise insert
-                    Optional<MenuItem> existingItemOpt = menuItemRepository.findByName(name);
+                    Optional<MenuItem> existingItemOpt = menuItemRepository.findByNameAndIsDeletedFalse(name);
                     if (existingItemOpt.isPresent()) {
                         MenuItem existing = existingItemOpt.get();
                         existing.setCategory(category);

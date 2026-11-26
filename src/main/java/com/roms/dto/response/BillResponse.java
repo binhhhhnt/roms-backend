@@ -15,6 +15,7 @@ public class BillResponse {
     private Long id;
     private String billCode;
     private Long sessionId;
+    private String sessionCode;
     private String tableCode;
     private BigDecimal amountBeforeDiscount;
     private Long promotionId;

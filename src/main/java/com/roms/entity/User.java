@@ -21,6 +21,12 @@ public class User {
     public User(Long id, String username, String passwordHash, String fullName, String email,
                 UserRole role, RestaurantTable table, Boolean isActive,
                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, username, passwordHash, fullName, email, role, table, isActive, false, createdAt, updatedAt);
+    }
+
+    public User(Long id, String username, String passwordHash, String fullName, String email,
+                UserRole role, RestaurantTable table, Boolean isActive, Boolean isDeleted,
+                LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.username = username;
         this.passwordHash = passwordHash;
@@ -29,6 +35,7 @@ public class User {
         this.role = role;
         this.table = table;
         this.isActive = isActive != null ? isActive : true;
+        this.isDeleted = isDeleted != null ? isDeleted : false;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -60,6 +67,10 @@ public class User {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private Boolean isDeleted = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

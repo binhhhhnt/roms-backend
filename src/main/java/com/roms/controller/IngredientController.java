@@ -82,6 +82,13 @@ public class IngredientController {
         return ResponseEntity.ok(ApiResponse.success("Ingredient deactivated successfully", response));
     }
 
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<IngredientResponse>> activateIngredient(@PathVariable Long id) {
+        var response = ingredientService.activateIngredient(id);
+        return ResponseEntity.ok(ApiResponse.success("Ingredient activated successfully", response));
+    }
+
     @GetMapping("/excel/template")
     @PreAuthorize("hasAnyRole('OWNER', 'INVENTORY_STAFF')")
     public ResponseEntity<byte[]> downloadTemplate() {

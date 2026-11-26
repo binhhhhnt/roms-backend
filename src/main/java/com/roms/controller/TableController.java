@@ -53,7 +53,7 @@ public class TableController {
     @PreAuthorize("hasAnyRole('OWNER', 'SERVICE_STAFF')")
     public ResponseEntity<ApiResponse<PageResponse<TableResponse>>> getTables(
             @RequestParam(required = false) Boolean isActive,
-            @RequestParam(required = false) String area,
+            @RequestParam(required = false) Long areaId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -68,7 +68,7 @@ public class TableController {
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortOrder);
-        PageResponse<TableResponse> tables = tableService.getTables(isActive, area, search, pageable);
+        PageResponse<TableResponse> tables = tableService.getTables(isActive, areaId, search, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Tables retrieved successfully", tables));
     }

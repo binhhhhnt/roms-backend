@@ -21,4 +21,6 @@ public interface IngredientService {
     IngredientResponse updateIngredient(Long id, UpdateIngredientRequest request);
 
     IngredientResponse deactivateIngredient(Long id);
+
+    IngredientResponse activateIngredient(Long id);
 }

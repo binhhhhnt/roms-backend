@@ -44,6 +44,7 @@ public class OrderServiceImpl implements OrderService {
     private final IngredientRepository ingredientRepository;
     private final StockMovementRepository stockMovementRepository;
     private final ServiceSessionRepository serviceSessionRepository;
+    private final BillRepository billRepository;
     private final UserRepository userRepository;
     private final RestaurantSettingService restaurantSettingService;
     private final OrderEventPublisher orderEventPublisher;
@@ -623,9 +624,11 @@ public class OrderServiceImpl implements OrderService {
                 .map(OrderItemResponse::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        String sessionCode = order.getServiceSession() != null ? order.getServiceSession().getSessionCode() : null;
         return OrderResponse.builder()
                 .id(order.getId())
                 .sessionId(sessionId)
+                .sessionCode(sessionCode)
                 .tableId(tableId)
                 .tableCode(tableCode)
                 .status(order.getStatus())
@@ -695,6 +698,11 @@ public class OrderServiceImpl implements OrderService {
 
         if (session.getStatus() != ServiceSessionStatus.ACTIVE) {
             throw new BusinessRuleException("SESSION_NOT_ACTIVE", "Cannot return items for a closed service session");
+        }
+
+        if (billRepository.existsByServiceSessionId(sessionId)) {
+            throw new BusinessRuleException("BILL_ALREADY_EXISTS",
+                    "Cannot return items because a bill already exists for this session");
         }
 
         if (request.getItems() == null || request.getItems().isEmpty()) {

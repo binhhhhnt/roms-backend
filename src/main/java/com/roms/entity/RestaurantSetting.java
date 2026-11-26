@@ -44,6 +44,10 @@ public class RestaurantSetting {
     @Builder.Default
     private Boolean printReadyTicket = true;
 
+    @Column(name = "print_kitchen_order_ticket", nullable = false)
+    @Builder.Default
+    private Boolean printKitchenOrderTicket = false;
+
     @Column(name = "bill_printer_name", length = 255)
     private String billPrinterName;
 

@@ -60,7 +60,7 @@ class CategoryServiceImplTest {
     void tabletListFiltersInDatabaseBeforePaginationAndMapsMetadata() {
         authenticate(UserRole.TABLE_ACCOUNT);
         var pageable = PageRequest.of(1, 10, Sort.by("displayOrder").and(Sort.by("id")));
-        when(repository.findByIsActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(category(true)), pageable, 11));
+        when(repository.findByIsActiveTrueAndIsDeletedFalse(pageable)).thenReturn(new PageImpl<>(List.of(category(true)), pageable, 11));
 
         var result = service.getCategories(PageRequest.of(1, 10));
 
@@ -75,12 +75,12 @@ class CategoryServiceImplTest {
             assertThat(dto.getDisplayOrder()).isEqualTo(2);
             assertThat(dto.getIsActive()).isTrue();
         });
-        verify(repository, never()).findAll(any(org.springframework.data.domain.Pageable.class));
+        verify(repository, never()).findAllByIsDeletedFalse(any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
     void everyStaffRoleCanReadInactiveCategories() {
-        when(repository.findById(7L)).thenReturn(Optional.of(category(false)));
+        when(repository.findByIdAndIsDeletedFalse(7L)).thenReturn(Optional.of(category(false)));
         for (UserRole role : List.of(UserRole.OWNER, UserRole.SERVICE_STAFF, UserRole.KITCHEN_STAFF, UserRole.INVENTORY_STAFF)) {
             authenticate(role);
             assertThat(service.getCategory(7L).getIsActive()).isFalse();
@@ -91,23 +91,23 @@ class CategoryServiceImplTest {
     void staffListIncludesInactiveCategoriesAndCapsPageSizeWithStableSorting() {
         authenticate(UserRole.OWNER);
         var normalized = PageRequest.of(0, 100, Sort.by(Sort.Order.desc("name"), Sort.Order.asc("id")));
-        when(repository.findAll(normalized)).thenReturn(new PageImpl<>(List.of(category(false)), normalized, 1));
+        when(repository.findAllByIsDeletedFalse(normalized)).thenReturn(new PageImpl<>(List.of(category(false)), normalized, 1));
 
         var result = service.getCategories(PageRequest.of(0, 500, Sort.by(Sort.Order.desc("name"))));
 
         assertThat(result.getSize()).isEqualTo(100);
         assertThat(result.getContent()).singleElement().satisfies(dto -> assertThat(dto.getIsActive()).isFalse());
-        verify(repository, never()).findByIsActiveTrue(any());
+        verify(repository, never()).findByIsActiveTrueAndIsDeletedFalse(any());
     }
 
     @Test
     void tabletCanReadActiveCategoryButInactiveAndMissingHaveSameNotFoundResponse() {
         authenticate(UserRole.TABLE_ACCOUNT);
-        when(repository.findById(7L)).thenReturn(Optional.of(category(true)));
+        when(repository.findByIdAndIsDeletedFalse(7L)).thenReturn(Optional.of(category(true)));
         assertThat(service.getCategory(7L).getId()).isEqualTo(7L);
-        when(repository.findById(7L)).thenReturn(Optional.of(category(false)));
+        when(repository.findByIdAndIsDeletedFalse(7L)).thenReturn(Optional.of(category(false)));
         assertThatThrownBy(() -> service.getCategory(7L)).isInstanceOf(ResourceNotFoundException.class).hasMessage("Category not found");
-        when(repository.findById(8L)).thenReturn(Optional.empty());
+        when(repository.findByIdAndIsDeletedFalse(8L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.getCategory(8L)).isInstanceOf(ResourceNotFoundException.class).hasMessage("Category not found");
     }
 

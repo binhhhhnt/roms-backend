@@ -16,10 +16,10 @@ public class CreateTableRequest {
     public CreateTableRequest() {
     }
 
-    public CreateTableRequest(String tableCode, Integer capacity, String area) {
+    public CreateTableRequest(String tableCode, Integer capacity, Long areaId) {
         this.tableCode = tableCode;
         this.capacity = capacity;
-        this.area = area;
+        this.areaId = areaId;
     }
 
     @NotBlank(message = "Table code cannot be blank")
@@ -30,6 +30,6 @@ public class CreateTableRequest {
     @Min(value = 1, message = "Capacity must be at least 1")
     private Integer capacity;
 
-    @Size(max = 100, message = "Area must not exceed 100 characters")
-    private String area;
+    @NotNull(message = "Area is required")
+    private Long areaId;
 }

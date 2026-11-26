@@ -74,7 +74,7 @@ public class MenuItemServiceImpl implements MenuItemService {
             statuses = EnumSet.of(status);
         }
         boolean requireBom = forOrder || (role == UserRole.TABLE_ACCOUNT || role == UserRole.SERVICE_STAFF);
-        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT, requireBom,
+        var page = repository.findCatalog(categoryId, statuses, role == UserRole.TABLE_ACCOUNT || forOrder, requireBom,
                 normalizePageable(pageable));
         if (page.isEmpty())
             return PageResponse.from(page, item -> readResponse(item, List.of(), quantity));
@@ -163,7 +163,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     private MenuItemResponse write(MenuItemWriteRequest request, MenuItem item) {
-        item.setCategory(categories.findById(request.getCategoryId())
+        item.setCategory(categories.findByIdAndIsDeletedFalse(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found")));
 
         if (taxCategories != null) {

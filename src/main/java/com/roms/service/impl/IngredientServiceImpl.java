@@ -138,4 +138,20 @@ public class IngredientServiceImpl implements IngredientService {
         log.info("Deactivated ingredient id={}", saved.getId());
         return ingredientMapper.toResponse(saved);
     }
+
+    @Override
+    @Transactional
+    public IngredientResponse activateIngredient(Long id) {
+        Ingredient ingredient = ingredientRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ingredient not found with id: " + id));
+
+        if (Boolean.TRUE.equals(ingredient.getIsActive())) {
+            return ingredientMapper.toResponse(ingredient);
+        }
+
+        ingredient.setIsActive(true);
+        Ingredient saved = ingredientRepository.save(ingredient);
+        log.info("Activated ingredient id={}", saved.getId());
+        return ingredientMapper.toResponse(saved);
+    }
 }
