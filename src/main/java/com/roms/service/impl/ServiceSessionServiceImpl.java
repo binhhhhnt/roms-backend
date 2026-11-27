@@ -297,6 +297,12 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
         @Transactional(readOnly = true)
         public PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status,
                         String search, java.time.LocalDate fromDate, java.time.LocalDate toDate, Pageable pageable) {
+                if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+                        throw new com.roms.exception.ValidationException(
+                                        "INVALID_DATE_RANGE",
+                                        "Ngày kết thúc không được trước ngày bắt đầu",
+                                        null);
+                }
                 String trimmedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
                 java.time.LocalDateTime fromDateTime = fromDate != null
                                 ? fromDate.atStartOfDay()

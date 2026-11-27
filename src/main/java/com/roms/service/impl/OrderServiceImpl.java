@@ -282,6 +282,14 @@ public class OrderServiceImpl implements OrderService {
             java.time.LocalDate fromDate,
             java.time.LocalDate toDate,
             org.springframework.data.domain.Pageable pageable) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new ValidationException(
+                    "INVALID_DATE_RANGE",
+                    "Ngày kết thúc không được trước ngày bắt đầu",
+                    null
+            );
+        }
+
         java.util.Collection<OrderStatus> statuses = status != null
                 ? java.util.List.of(status)
                 : java.util.Arrays.asList(OrderStatus.values());
