@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.roms.exception.ValidationException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -93,8 +94,9 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, BigDecimal> aggregatedRequirements = new HashMap<>();
 
         for (CreateOrderItemRequest line : request.getItems()) {
-            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(), id -> menuItemRepository.findByIdAndIsDeletedFalse(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id)));
+            MenuItem menuItem = menuItemMap.computeIfAbsent(line.getMenuItemId(),
+                    id -> menuItemRepository.findByIdAndIsDeletedFalse(id)
+                            .orElseThrow(() -> new ResourceNotFoundException("Menu item not found with id: " + id)));
 
             if (menuItem.getStatus() != MenuItemStatus.AVAILABLE) {
                 throw new BusinessRuleException("MENU_ITEM_UNAVAILABLE",
@@ -286,8 +288,7 @@ public class OrderServiceImpl implements OrderService {
             throw new ValidationException(
                     "INVALID_DATE_RANGE",
                     "Ngày kết thúc không được trước ngày bắt đầu",
-                    null
-            );
+                    null);
         }
 
         java.util.Collection<OrderStatus> statuses = status != null
@@ -308,8 +309,7 @@ public class OrderServiceImpl implements OrderService {
                 sessionPattern,
                 fromDateTime,
                 toDateTime,
-                pageable
-        );
+                pageable);
 
         return com.roms.common.PageResponse.from(orderPage, o -> {
             List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(o.getId());
@@ -710,7 +710,8 @@ public class OrderServiceImpl implements OrderService {
                         ReturnOrderItemsRequest.ItemReturnDto::getReturnQuantity,
                         (existing, replacement) -> replacement));
 
-        // 2. Validate items & collect only items whose returnedQuantity actually changes
+        // 2. Validate items & collect only items whose returnedQuantity actually
+        // changes
         Set<Long> menuItemIds = new HashSet<>();
         List<Long> changedItemIds = new ArrayList<>();
         Map<Long, Integer> deltaByItemId = new LinkedHashMap<>();
@@ -727,7 +728,8 @@ public class OrderServiceImpl implements OrderService {
 
             if (item.getStatus() != OrderItemStatus.COMPLETED) {
                 throw new BusinessRuleException("ITEM_NOT_COMPLETED",
-                        "Order item #" + itemId + " must be COMPLETED before returning (current: " + item.getStatus() + ")");
+                        "Order item #" + itemId + " must be COMPLETED before returning (current: " + item.getStatus()
+                                + ")");
             }
 
             if (item.getMenuItem() == null || !Boolean.TRUE.equals(item.getMenuItem().getIsDirectSale())) {
@@ -742,7 +744,8 @@ public class OrderServiceImpl implements OrderService {
             if (targetReturn < 0 || targetReturn > item.getQuantity()) {
                 throw new BusinessRuleException("INVALID_RETURN_QUANTITY",
                         "Target return quantity (" + targetReturn
-                                + ") must be between 0 and ordered quantity (" + item.getQuantity() + ") for item #" + itemId);
+                                + ") must be between 0 and ordered quantity (" + item.getQuantity() + ") for item #"
+                                + itemId);
             }
 
             int delta = targetReturn - currentReturned;
@@ -762,9 +765,11 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, List<RecipeItem>> recipesByMenuItem = allRecipes.stream()
                 .collect(Collectors.groupingBy(r -> r.getMenuItem().getId()));
 
-        // 4. Collect unique ingredient IDs in ascending order for batch pessimistic lock
+        // 4. Collect unique ingredient IDs in ascending order for batch pessimistic
+        // lock
         List<Long> sortedIngIds = changedItemIds.stream()
-                .flatMap(id -> recipesByMenuItem.getOrDefault(itemMap.get(id).getMenuItem().getId(), Collections.emptyList()).stream())
+                .flatMap(id -> recipesByMenuItem
+                        .getOrDefault(itemMap.get(id).getMenuItem().getId(), Collections.emptyList()).stream())
                 .map(RecipeItem::getIngredient)
                 .filter(Objects::nonNull)
                 .map(Ingredient::getId)
@@ -772,7 +777,8 @@ public class OrderServiceImpl implements OrderService {
                 .sorted()
                 .toList();
 
-        // 5. DEADLOCK & N+1 PREVENTION: Batch lock all ingredients in ascending ID order in 1 query
+        // 5. DEADLOCK & N+1 PREVENTION: Batch lock all ingredients in ascending ID
+        // order in 1 query
         Map<Long, Ingredient> lockedIngredients = new LinkedHashMap<>();
         if (!sortedIngIds.isEmpty()) {
             List<Ingredient> ingList = ingredientRepository.findAllByIdInForUpdate(sortedIngIds);
