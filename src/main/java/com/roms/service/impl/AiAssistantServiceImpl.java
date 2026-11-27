@@ -1,6 +1,7 @@
 package com.roms.service.impl;
 
 import tools.jackson.databind.ObjectMapper;
+import com.roms.dto.request.AiChatHistoryItem;
 import com.roms.dto.request.AiRecommendationRequest;
 import com.roms.dto.response.AiRecommendationItem;
 import com.roms.dto.response.AiRecommendationResponse;
@@ -179,7 +180,7 @@ public class AiAssistantServiceImpl implements AiAssistantService {
         // 2. Kiểm tra câu hỏi thông tin nhà hàng (giờ mở cửa, wifi, bãi đỗ xe, địa chỉ...) -> Trả lời đúng trọng tâm, KHÔNG gửi món ăn
         if (isRestaurantInfoQuery(queryNorm)) {
             return AiRecommendationResponse.builder()
-                    .message(getRestaurantInfoReply(queryNorm))
+                    .message(getRestaurantInfoReply())
                     .recommendations(Collections.emptyList())
                     .build();
         }
@@ -350,25 +351,10 @@ public class AiAssistantServiceImpl implements AiAssistantService {
     }
 
     /**
-     * Sinh phản hồi chuẩn xác cho các câu hỏi thông tin nhà hàng.
+     * Sinh phản hồi từ chối lịch sự đối với các câu hỏi thông tin ngoài phạm vi thực đơn.
      */
-    private String getRestaurantInfoReply(String queryNorm) {
-        if (queryNorm.contains("mo cua") || queryNorm.contains("dong cua") || queryNorm.contains("may gio") || queryNorm.contains("gio")) {
-            return "Dạ nhà hàng mở cửa phục vụ từ 10:00 sáng đến 22:00 tất cả các ngày trong tuần. Quầy bếp nhận gọi món cuối lúc 21:30 ạ!";
-        }
-        if (queryNorm.contains("wifi") || queryNorm.contains("mat khau") || queryNorm.contains("pass")) {
-            return "Dạ mạng Wifi miễn phí của nhà hàng là 'ROMS_Guest' (Mật khẩu: 'roms8888'). Quý khách có thể kết nối và sử dụng ạ!";
-        }
-        if (queryNorm.contains("do xe") || queryNorm.contains("gui xe") || queryNorm.contains("cho de xe") || queryNorm.contains("o to")) {
-            return "Dạ nhà hàng có bãi đỗ xe máy và xe ô tô rộng rãi ngay phía trước, hoàn toàn miễn phí và có nhân viên bảo vệ trông giữ an toàn cho quý khách ạ!";
-        }
-        if (queryNorm.contains("dia chi") || queryNorm.contains("o dau") || queryNorm.contains("vi tri")) {
-            return "Dạ nhà hàng ROMS tọa lạc tại vị trí trung tâm thuận tiện, không gian ấm cúng sang trọng, rất hân hạnh được đón tiếp quý khách ạ!";
-        }
-        if (queryNorm.contains("so dien thoai") || queryNorm.contains("hotline") || queryNorm.contains("lien he")) {
-            return "Dạ số hotline hỗ trợ và đặt bàn của nhà hàng là: 1900 8888 (hoặc 0988 888 888) luôn sẵn sàng hỗ trợ quý khách ạ!";
-        }
-        return "Dạ em là Trợ lý Ẩm thực nhà hàng ROMS. Quý khách cần hỗ trợ thêm thông tin gì về thực đơn hoặc dịch vụ của nhà hàng không ạ?";
+    private String getRestaurantInfoReply() {
+        return "Dạ xin lỗi quý khách, em chỉ hỗ trợ tư vấn về món ăn và danh mục trong thực đơn của nhà hàng. Với các thông tin khác, quý khách vui lòng hỏi trực tiếp nhân viên phục vụ để được hỗ trợ chính xác nhất ạ!";
     }
 
     /**
@@ -693,10 +679,10 @@ Nhiệm vụ của bạn là trò chuyện, trả lời chuẩn xác câu hỏi 
 
 QUY TẮC CỐT LÕI (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT):
 1. PHÂN LOẠI Ý ĐỊNH VÀ TRẢ LỜI ĐÚNG TRỌNG TÂM:
-   a. CÂU HỎI THÔNG TIN CHUNG / CHÀO HỎI / GIAO TIẾP (Không yêu cầu gợi ý món):
-      - Ví dụ: "Xin chào", "Hello", "Cảm ơn", "Quán mở cửa mấy giờ?", "Có wifi không?", "Có chỗ đỗ ô tô không?", "Địa chỉ ở đâu?", "Nhà hàng có dịch vụ gì?"...
-      - Hành động: Trả lời lịch sự, đầy đủ, thân thiện trong "message".
-      - "recommendations": [] (BẮT BUỘC LÀ MẢNG RỖNG. TUYỆT ĐỐI KHÔNG gửi kèm món ăn khi khách chỉ hỏi thông tin chung hoặc chào hỏi).
+   a. CÂU HỎI CHÀO HỎI / CẢM ƠN HOẶC NGOÀI PHẠM VI MÓN ĂN & DANH MỤC:
+      - Nếu là chào hỏi, cảm ơn ("Xin chào", "Hello", "Cảm ơn"): Trả lời lịch sự, thân thiện trong "message" và để "recommendations": [].
+      - Nếu khách hỏi thông tin ngoài phạm vi món ăn, danh mục, nguyên liệu thực đơn (ví dụ: giờ mở cửa, wifi, bãi đỗ xe, địa chỉ, hotline, thời tiết, chuyện ngoài lề...): Xin phép từ chối lịch sự vì ngoài phạm vi hỗ trợ (chỉ tư vấn món ăn & danh mục thực đơn) và hướng dẫn khách liên hệ nhân viên phục vụ nếu cần; để "recommendations": [].
+      - TUYỆT ĐỐI KHÔNG tự bịa thông tin giờ mở cửa, wifi, địa chỉ, hotline hay gửi kèm món ăn ở nhóm này.
    
    b. HỎI MÓN THEO NGUYÊN LIỆU CỤ THỂ HOẶC TÌM MÓN CỤ THỂ:
       - Ví dụ: "Món nào có thịt bò?", "Có món gì nấu từ tôm?", "Món nào có nấm?", "Có món cá hồi không?", "Quán có pizza / sushi không?", "Có lẩu không?", "Món có khoai tây"...
@@ -737,6 +723,26 @@ Lưu ý: Nếu không đề xuất món (chào hỏi/thông tin chung/món khôn
         StringBuilder sb = new StringBuilder();
         sb.append("DANH SÁCH THỰC ĐƠN VÀ NGUYÊN LIỆU CÔNG THỨC NHÀ HÀNG (JSON):\n");
         sb.append(menuContextJson).append("\n\n");
+
+        if (request.getHistory() != null && !request.getHistory().isEmpty()) {
+            StringBuilder historySb = new StringBuilder();
+            for (AiChatHistoryItem item : request.getHistory()) {
+                if (item == null || item.getText() == null || item.getText().trim().isEmpty()) {
+                    continue;
+                }
+                String text = item.getText().trim();
+                boolean isUser = "user".equalsIgnoreCase(item.getSender());
+                if (!isUser && text.length() > 300) {
+                    text = text.substring(0, 300) + "...";
+                }
+                historySb.append(isUser ? "- Khách: \"" : "- Trợ lý: \"").append(text).append("\"\n");
+            }
+            if (!historySb.isEmpty()) {
+                sb.append("LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ (Từ cũ đến mới):\n");
+                sb.append(historySb).append("\n");
+            }
+        }
+
         sb.append("THÔNG TIN TRÒ CHUYỆN & YÊU CẦU CỦA KHÁCH HÀNG:\n");
 
         String effectiveMsg = request.getEffectiveMessage() != null ? request.getEffectiveMessage().trim() : "";
@@ -757,12 +763,13 @@ Lưu ý: Nếu không đề xuất món (chào hỏi/thông tin chung/món khôn
         }
 
         sb.append("\nHƯỚNG DẪN XỬ LÝ:\n");
-        sb.append("1. Nếu khách chào hỏi, cảm ơn hoặc hỏi thông tin chung (giờ mở cửa, wifi, bãi đỗ xe...): Trả lời đúng thông tin trong \"message\" và để \"recommendations\": [].\n");
+        sb.append("1. Nếu khách chào hỏi/cảm ơn: Trả lời ngắn gọn, thân thiện và để \"recommendations\": []. Nếu khách hỏi nội dung ngoài phạm vi món ăn, danh mục, thực đơn (giờ mở cửa, wifi, bãi đỗ xe, địa chỉ, chuyện ngoài lề...): Xin phép từ chối lịch sự vì ngoài phạm vi hỗ trợ và để \"recommendations\": [].\n");
         sb.append("2. Nếu khách hỏi món theo nguyên liệu hoặc tìm món cụ thể:\n");
         sb.append("   - Tra cứu trong \"ingredients\" (công thức), \"name\" và \"description\".\n");
         sb.append("   - Nếu CÓ món chứa nguyên liệu đó: Gợi ý các món đó vào \"recommendations\" và nêu rõ nguyên liệu trong \"reason\".\n");
         sb.append("   - Nếu KHÔNG CÓ món nào chứa nguyên liệu đó: Thông báo rõ trong \"message\" là nhà hàng không có món này và để \"recommendations\": []. Tuyệt đối không gợi ý món linh tinh khác.\n");
         sb.append("3. Nếu khách yêu cầu gợi ý món/combo: Chọn 1-4 món phù hợp và giải thích lý do.\n");
+        sb.append("4. Nếu có LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ: Luôn ghi nhớ và tuân thủ các thông tin/ràng buộc khách đã nêu từ đầu phiên (như dị ứng, kiêng cữ, số người, ngân sách, sở thích).\n");
         sb.append("Trả về đúng định dạng JSON.");
         return sb.toString();
     }

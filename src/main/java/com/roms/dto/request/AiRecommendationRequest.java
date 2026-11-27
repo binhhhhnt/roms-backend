@@ -1,5 +1,6 @@
 package com.roms.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.List;
 
 /**
  * DTO yêu cầu gợi ý món ăn gửi tới Trợ lý AI (Gemini Assistant).
@@ -58,6 +61,13 @@ public class AiRecommendationRequest {
      */
     @Size(max = 500, message = "Message must not exceed 500 characters")
     private String message;
+
+    /**
+     * Lịch sử hội thoại gần nhất trong phiên để AI giữ ngữ cảnh xuyên suốt cuộc trò chuyện.
+     */
+    @Valid
+    @Size(max = 100, message = "History must not exceed 100 messages")
+    private List<AiChatHistoryItem> history;
 
     /**
      * Alias hỗ trợ cho frontend hoặc script gọi với trường query.
