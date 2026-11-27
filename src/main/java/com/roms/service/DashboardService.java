@@ -15,5 +15,5 @@ public interface DashboardService {
 
     List<DailyRevenueExpenseResponse> getDailyTrends(LocalDate startDate, LocalDate endDate);
 
-    byte[] exportDailyReportCsv(LocalDate startDate, LocalDate endDate);
+    byte[] exportDailyReportExcel(LocalDate startDate, LocalDate endDate);
 }

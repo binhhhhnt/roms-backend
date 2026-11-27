@@ -14,11 +14,13 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -103,6 +105,8 @@ public class ServiceSessionController {
             @RequestParam(required = false) Long tableId,
             @RequestParam(required = false) ServiceSessionStatus status,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "openedAt,desc") String[] sort) {
@@ -116,7 +120,7 @@ public class ServiceSessionController {
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortOrder);
-        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, search, pageable);
+        PageResponse<ServiceSessionResponse> sessions = sessionService.getSessions(tableId, status, search, fromDate, toDate, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Service sessions retrieved successfully", sessions));
     }

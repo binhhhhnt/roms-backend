@@ -159,8 +159,8 @@ class DashboardServiceImplTest {
     }
 
     @Test
-    @DisplayName("exportDailyReportCsv - success generates CSV with UTF-8 BOM")
-    void exportDailyReportCsv_success() {
+    @DisplayName("exportDailyReportExcel - success generates Excel (.xlsx) with title and summary row")
+    void exportDailyReportExcel_success() throws Exception {
         LocalDate start = LocalDate.of(2026, 10, 1);
         LocalDate end = LocalDate.of(2026, 10, 1);
 
@@ -170,16 +170,17 @@ class DashboardServiceImplTest {
         when(expenseRepository.sumActiveExpensesGroupedByDate(any(), any())).thenReturn(List.of());
         when(purchaseRepository.sumPurchasesGroupedByDate(any(), any())).thenReturn(List.of());
 
-        byte[] csv = dashboardService.exportDailyReportCsv(start, end);
+        byte[] excelBytes = dashboardService.exportDailyReportExcel(start, end);
 
-        assertThat(csv).isNotNull();
-        // BOM check
-        assertThat(csv[0]).isEqualTo((byte) 0xEF);
-        assertThat(csv[1]).isEqualTo((byte) 0xBB);
-        assertThat(csv[2]).isEqualTo((byte) 0xBF);
-
-        String text = new String(csv, StandardCharsets.UTF_8);
-        assertThat(text).contains("Ngày,Doanh thu (VND),Chi phí vận hành (VND),Chi phí nhập hàng (VND),Lợi nhuận ước tính (VND)");
-        assertThat(text).contains("2026-10-01,2000000.00,0.00,0.00,2000000.00");
+        assertThat(excelBytes).isNotNull();
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(excelBytes))) {
+            var sheet = workbook.getSheetAt(0);
+            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("BÁO CÁO TÀI CHÍNH THEO NGÀY");
+            assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).isEqualTo("Ngày");
+            assertThat(sheet.getRow(4).getCell(0).getStringCellValue()).isEqualTo("01/10/2026");
+            assertThat(sheet.getRow(4).getCell(1).getNumericCellValue()).isEqualTo(2_000_000d);
+            assertThat(sheet.getRow(5).getCell(0).getStringCellValue()).isEqualTo("Tổng cộng");
+            assertThat(sheet.getRow(5).getCell(1).getNumericCellValue()).isEqualTo(2_000_000d);
+        }
     }
 }

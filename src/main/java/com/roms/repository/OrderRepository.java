@@ -3,12 +3,15 @@ package com.roms.repository;
 import com.roms.entity.Order;
 import com.roms.enums.OrderStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +24,31 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT o FROM Order o WHERE (:sessionId IS NULL OR o.serviceSession.id = :sessionId) AND (:status IS NULL OR o.status = :status) ORDER BY o.createdAt DESC")
     List<Order> findOrdersFiltered(@Param("sessionId") Long sessionId, @Param("status") OrderStatus status);
+
+    @Query(
+            value = "SELECT o FROM Order o " +
+                    "LEFT JOIN FETCH o.serviceSession s " +
+                    "LEFT JOIN FETCH s.table " +
+                    "WHERE o.status IN :statuses " +
+                    "AND (:hasSession = false OR LOWER(s.sessionCode) LIKE :sessionPattern " +
+                    "     OR CAST(s.id AS string) LIKE :sessionPattern) " +
+                    "AND o.createdAt >= :fromDateTime " +
+                    "AND o.createdAt < :toDateTime",
+            countQuery = "SELECT COUNT(o) FROM Order o " +
+                    "LEFT JOIN o.serviceSession s " +
+                    "WHERE o.status IN :statuses " +
+                    "AND (:hasSession = false OR LOWER(s.sessionCode) LIKE :sessionPattern " +
+                    "     OR CAST(s.id AS string) LIKE :sessionPattern) " +
+                    "AND o.createdAt >= :fromDateTime " +
+                    "AND o.createdAt < :toDateTime"
+    )
+    Page<Order> findOrdersPaged(
+            @Param("statuses") Collection<OrderStatus> statuses,
+            @Param("hasSession") boolean hasSession,
+            @Param("sessionPattern") String sessionPattern,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            Pageable pageable);
 
     @Query("SELECT o FROM Order o " +
            "LEFT JOIN FETCH o.serviceSession s " +
