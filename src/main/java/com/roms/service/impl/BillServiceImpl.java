@@ -451,16 +451,36 @@ public class BillServiceImpl implements BillService {
         @Override
         @Transactional(readOnly = true)
         public Page<BillResponse> getBills(Pageable pageable) {
-                return getBills(null, pageable);
+                return getBills(null, null, null, pageable);
         }
 
         @Override
         @Transactional(readOnly = true)
         public Page<BillResponse> getBills(String search, Pageable pageable) {
+                return getBills(search, null, null, pageable);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public Page<BillResponse> getBills(String search, java.time.LocalDate fromDate, java.time.LocalDate toDate,
+                        Pageable pageable) {
+                if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+                        throw new com.roms.exception.ValidationException(
+                                        "INVALID_DATE_RANGE",
+                                        "Ngày kết thúc không được trước ngày bắt đầu",
+                                        null);
+                }
                 String normalizedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+                java.time.LocalDateTime fromDateTime = fromDate != null
+                                ? fromDate.atStartOfDay()
+                                : java.time.LocalDateTime.of(1970, 1, 1, 0, 0);
+                java.time.LocalDateTime toDateTime = toDate != null
+                                ? toDate.plusDays(1).atStartOfDay()
+                                : java.time.LocalDateTime.of(2999, 12, 31, 0, 0);
+
                 Page<Bill> page = (normalizedSearch != null)
-                                ? billRepository.findAllFiltered(normalizedSearch, pageable)
-                                : billRepository.findAllWithDetails(pageable);
+                                ? billRepository.findAllFiltered(normalizedSearch, fromDateTime, toDateTime, pageable)
+                                : billRepository.findAllWithDateRange(fromDateTime, toDateTime, pageable);
                 return page.map(this::mapToBillResponse);
         }
 

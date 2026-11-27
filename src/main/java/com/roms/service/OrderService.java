@@ -1,12 +1,15 @@
 package com.roms.service;
 
+import com.roms.common.PageResponse;
 import com.roms.dto.request.CancelOrderItemRequest;
 import com.roms.dto.request.CancelOrderRequest;
 import com.roms.dto.request.CreateOrderRequest;
 import com.roms.dto.response.OrderItemResponse;
 import com.roms.dto.response.OrderResponse;
 import com.roms.enums.OrderStatus;
+import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface OrderService {
@@ -39,6 +42,16 @@ public interface OrderService {
      * @return list of orders
      */
     List<OrderResponse> getOrders(Long sessionId, OrderStatus status);
+
+    /**
+     * Retrieve paged orders with optional filters by status, session code/ID, and date range.
+     */
+    PageResponse<OrderResponse> getOrdersPaged(
+            OrderStatus status,
+            String session,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Pageable pageable);
 
     /**
      * Cancel an entire Order when in PENDING status.

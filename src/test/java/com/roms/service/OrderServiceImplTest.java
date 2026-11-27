@@ -162,7 +162,7 @@ class OrderServiceImplTest {
         authenticate(UserRole.TABLE_ACCOUNT, 1L);
 
         when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItemPho));
+        when(menuItemRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(menuItemPho));
         when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipePho));
         when(ingredientRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(beefIngredient));
         when(userRepository.findById(10L)).thenReturn(Optional.of(tableUser));
@@ -258,7 +258,7 @@ class OrderServiceImplTest {
         menuItemPho.setStatus(MenuItemStatus.TEMPORARILY_UNAVAILABLE);
 
         when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItemPho));
+        when(menuItemRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(menuItemPho));
 
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .sessionId(100L)
@@ -277,7 +277,7 @@ class OrderServiceImplTest {
         beefIngredient.setCurrentStock(BigDecimal.valueOf(0.100)); // Only 100g in stock, needs 300g
 
         when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItemPho));
+        when(menuItemRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(menuItemPho));
         when(recipeItemRepository.findByMenuItemIdWithIngredient(1L)).thenReturn(List.of(recipePho));
         when(ingredientRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(beefIngredient));
 
@@ -485,7 +485,7 @@ class OrderServiceImplTest {
         menuItemPho.setStatus(MenuItemStatus.DISCONTINUED);
 
         when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItemPho));
+        when(menuItemRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(menuItemPho));
 
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .sessionId(100L)
@@ -745,10 +745,11 @@ class OrderServiceImplTest {
                 .quantityRequired(new BigDecimal("1.000"))
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
         when(recipeItemRepository.findByMenuItemIdInWithIngredient(anyCollection())).thenReturn(List.of(recipe));
-        when(ingredientRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(beerCan));
+        when(ingredientRepository.findAllByIdInForUpdate(List.of(501L))).thenReturn(List.of(beerCan));
         when(userRepository.findById(any())).thenReturn(Optional.of(User.builder().id(2L).username("waiter1").build()));
         when(orderItemRepository.findDirectSaleItemsBySessionId(100L)).thenReturn(List.of(item));
         when(serviceSessionRepository.existsById(100L)).thenReturn(true);
@@ -763,11 +764,13 @@ class OrderServiceImplTest {
         assertThat(item.getReturnedQuantity()).isEqualTo(3);
         assertThat(beerCan.getCurrentStock()).isEqualByComparingTo(new BigDecimal("23.000")); // 20 + 3
 
-        verify(stockMovementRepository).save(argThat(m ->
-                m.getMovementType() == StockMovementType.ORDER_RETURN &&
-                m.getQuantityChange().compareTo(new BigDecimal("3.000")) == 0 &&
-                m.getNote().contains("Trả đồ Đơn #901 (Bia Heineken lon x3)")
-        ));
+        verify(stockMovementRepository).saveAll(argThat(movements -> {
+            var list = (List<StockMovement>) movements;
+            return list.size() == 1 &&
+                    list.get(0).getMovementType() == StockMovementType.ORDER_RETURN &&
+                    list.get(0).getQuantityChange().compareTo(new BigDecimal("3.000")) == 0 &&
+                    list.get(0).getNote().contains("Trả đồ Đơn #901 (Bia Heineken lon x3)");
+        }));
     }
 
     @Test
@@ -796,16 +799,17 @@ class OrderServiceImplTest {
                 .status(OrderItemStatus.COMPLETED)
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(801L))).thenReturn(List.of(item));
 
         var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
-                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 3))) // 8 + 3 = 11 > 10
+                .items(List.of(new com.roms.dto.request.ReturnOrderItemsRequest.ItemReturnDto(801L, 11))) // 11 > 10
                 .build();
 
         assertThatThrownBy(() -> orderService.returnSessionDirectSaleItems(100L, returnReq))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("cannot exceed ordered quantity");
+                .hasMessageContaining("must be between 0 and ordered quantity");
     }
 
     @Test
@@ -834,7 +838,8 @@ class OrderServiceImplTest {
                 .status(OrderItemStatus.COMPLETED)
                 .build();
 
-        when(serviceSessionRepository.findById(100L)).thenReturn(Optional.of(session1));
+        when(serviceSessionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(session1));
+        when(billRepository.existsByServiceSessionId(100L)).thenReturn(false);
         when(orderItemRepository.findAllByIdInForUpdate(List.of(802L))).thenReturn(List.of(item));
 
         var returnReq = com.roms.dto.request.ReturnOrderItemsRequest.builder()
