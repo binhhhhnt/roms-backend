@@ -275,6 +275,41 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public com.roms.common.PageResponse<OrderResponse> getOrdersPaged(
+            OrderStatus status,
+            String session,
+            java.time.LocalDate fromDate,
+            java.time.LocalDate toDate,
+            org.springframework.data.domain.Pageable pageable) {
+        java.util.Collection<OrderStatus> statuses = status != null
+                ? java.util.List.of(status)
+                : java.util.Arrays.asList(OrderStatus.values());
+        boolean hasSession = session != null && !session.trim().isEmpty();
+        String sessionPattern = hasSession ? "%" + session.trim().toLowerCase() + "%" : "";
+        java.time.LocalDateTime fromDateTime = fromDate != null
+                ? fromDate.atStartOfDay()
+                : java.time.LocalDateTime.of(1970, 1, 1, 0, 0);
+        java.time.LocalDateTime toDateTime = toDate != null
+                ? toDate.plusDays(1).atStartOfDay()
+                : java.time.LocalDateTime.of(2999, 12, 31, 0, 0);
+
+        org.springframework.data.domain.Page<Order> orderPage = orderRepository.findOrdersPaged(
+                statuses,
+                hasSession,
+                sessionPattern,
+                fromDateTime,
+                toDateTime,
+                pageable
+        );
+
+        return com.roms.common.PageResponse.from(orderPage, o -> {
+            List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(o.getId());
+            return mapToOrderResponse(o, items);
+        });
+    }
+
+    @Override
     @Transactional
     public OrderResponse cancelOrder(Long id, CancelOrderRequest request) {
         Order order = orderRepository.findByIdForUpdate(id)

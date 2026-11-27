@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,16 +39,20 @@ public interface ServiceSessionRepository extends JpaRepository<ServiceSession, 
            "WHERE (:tableId IS NULL OR t.id = :tableId) " +
            "AND (:status IS NULL OR s.status = :status) " +
            "AND (:search IS NULL OR LOWER(s.sessionCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
-           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))",
+           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) " +
+           "AND s.openedAt >= :fromDateTime AND s.openedAt < :toDateTime",
            countQuery = "SELECT COUNT(s) FROM ServiceSession s JOIN s.table t " +
            "WHERE (:tableId IS NULL OR t.id = :tableId) " +
            "AND (:status IS NULL OR s.status = :status) " +
            "AND (:search IS NULL OR LOWER(s.sessionCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
-           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
+           "     OR LOWER(t.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) " +
+           "AND s.openedAt >= :fromDateTime AND s.openedAt < :toDateTime")
     Page<ServiceSession> findWithFilters(
             @Param("tableId") Long tableId,
             @Param("status") ServiceSessionStatus status,
             @Param("search") String search,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toDateTime") LocalDateTime toDateTime,
             Pageable pageable
     );
 

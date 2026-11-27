@@ -55,17 +55,17 @@ public class DashboardController {
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportDailyReportCsv(
+    public ResponseEntity<byte[]> exportDailyReportExcel(
             @RequestParam(name = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        byte[] csvBytes = dashboardService.exportDailyReportCsv(startDate, endDate);
+        byte[] excelBytes = dashboardService.exportDailyReportExcel(startDate, endDate);
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType("text/csv; charset=UTF-8"));
-        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"daily-financial-report-" + LocalDate.now() + ".csv\"");
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"daily-financial-report-" + LocalDate.now() + ".xlsx\"");
 
         return ResponseEntity.ok()
                 .headers(headers)
-                .body(csvBytes);
+                .body(excelBytes);
     }
 }

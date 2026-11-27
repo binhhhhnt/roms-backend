@@ -46,6 +46,15 @@ public interface ServiceSessionService {
      */
     PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status, String search, Pageable pageable);
 
+    PageResponse<ServiceSessionResponse> getSessions(
+            Long tableId,
+            ServiceSessionStatus status,
+            String search,
+            java.time.LocalDate fromDate,
+            java.time.LocalDate toDate,
+            Pageable pageable
+    );
+
     /**
      * Chuyển phiên phục vụ sang một bàn ăn khác.
      *

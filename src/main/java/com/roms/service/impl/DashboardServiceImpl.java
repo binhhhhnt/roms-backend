@@ -1,6 +1,6 @@
 package com.roms.service.impl;
 
-import com.roms.common.CsvExportUtil;
+import com.roms.common.FinancialReportExcelUtil;
 import com.roms.dto.response.BestSellingDishResponse;
 import com.roms.dto.response.DailyRevenueExpenseResponse;
 import com.roms.dto.response.DashboardOverviewResponse;
@@ -155,9 +155,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] exportDailyReportCsv(LocalDate startDate, LocalDate endDate) {
+    public byte[] exportDailyReportExcel(LocalDate startDate, LocalDate endDate) {
         List<DailyRevenueExpenseResponse> trends = getDailyTrends(startDate, endDate);
-        return CsvExportUtil.generateDailyFinancialReportCsv(trends);
+        return FinancialReportExcelUtil.generateDailyFinancialReportExcel(trends, startDate, endDate);
     }
 
     private Map<LocalDate, BigDecimal> toDateMap(List<Object[]> rows) {

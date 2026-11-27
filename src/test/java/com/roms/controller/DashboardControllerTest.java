@@ -174,18 +174,22 @@ class DashboardControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/dashboard/export - success returns 200 OK with CSV attachment and UTF-8 BOM")
+    @DisplayName("GET /api/dashboard/export - success returns 200 OK with Excel (.xlsx) attachment")
     @WithMockUser(roles = "OWNER")
-    void exportDailyReportCsv_success() throws Exception {
-        byte[] dummyCsv = ("\uFEFFNgày,Doanh thu (VND),Chi phí vận hành (VND),Chi phí nhập hàng (VND),Lợi nhuận ước tính (VND)\n" +
-                "2026-10-01,1000000.00,300000.00,200000.00,500000.00\n").getBytes(StandardCharsets.UTF_8);
+    void exportDailyReportExcel_success() throws Exception {
+        byte[] dummyExcel = new byte[]{0x50, 0x4B, 0x03, 0x04};
 
-        when(dashboardService.exportDailyReportCsv(any(), any())).thenReturn(dummyCsv);
+        when(dashboardService.exportDailyReportExcel(any(), any())).thenReturn(dummyExcel);
 
         mockMvc.perform(get("/api/dashboard/export"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
-                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment; filename=\"daily-financial-report-")))
-                .andExpect(content().bytes(dummyCsv));
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")))
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("attachment; filename=\"daily-financial-report-"),
+                                org.hamcrest.Matchers.containsString(".xlsx\"")
+                        )))
+                .andExpect(content().bytes(dummyExcel));
     }
 }

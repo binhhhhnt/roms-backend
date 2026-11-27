@@ -290,8 +290,22 @@ public class ServiceSessionServiceImpl implements ServiceSessionService {
         @Transactional(readOnly = true)
         public PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status,
                         String search, Pageable pageable) {
+                return getSessions(tableId, status, search, null, null, pageable);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public PageResponse<ServiceSessionResponse> getSessions(Long tableId, ServiceSessionStatus status,
+                        String search, java.time.LocalDate fromDate, java.time.LocalDate toDate, Pageable pageable) {
                 String trimmedSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
-                Page<ServiceSession> sessionPage = sessionRepository.findWithFilters(tableId, status, trimmedSearch, pageable);
+                java.time.LocalDateTime fromDateTime = fromDate != null
+                                ? fromDate.atStartOfDay()
+                                : java.time.LocalDateTime.of(1970, 1, 1, 0, 0);
+                java.time.LocalDateTime toDateTime = toDate != null
+                                ? toDate.plusDays(1).atStartOfDay()
+                                : java.time.LocalDateTime.of(2999, 12, 31, 0, 0);
+                Page<ServiceSession> sessionPage = sessionRepository.findWithFilters(
+                                tableId, status, trimmedSearch, fromDateTime, toDateTime, pageable);
                 return PageResponse.from(sessionPage, tableMapper::toSessionResponse);
         }
 

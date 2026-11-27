@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -27,15 +28,23 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     Optional<Bill> findByIdWithDetails(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"promotion", "createdBy", "serviceSession"})
-    @Query("SELECT b FROM Bill b ORDER BY b.createdAt DESC")
-    Page<Bill> findAllWithDetails(Pageable pageable);
+    @Query("SELECT b FROM Bill b WHERE b.createdAt >= :fromDateTime AND b.createdAt < :toDateTime ORDER BY b.createdAt DESC")
+    Page<Bill> findAllWithDateRange(
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            Pageable pageable);
 
     @EntityGraph(attributePaths = {"promotion", "createdBy", "serviceSession"})
     @Query("SELECT b FROM Bill b WHERE " +
            "(:search IS NULL OR LOWER(b.billCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
            "   OR LOWER(b.tableCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) " +
+           "AND b.createdAt >= :fromDateTime AND b.createdAt < :toDateTime " +
            "ORDER BY b.createdAt DESC")
-    Page<Bill> findAllFiltered(@Param("search") String search, Pageable pageable);
+    Page<Bill> findAllFiltered(
+            @Param("search") String search,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            Pageable pageable);
 
     @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(bill_code, 15) AS INTEGER)), 0) " +
                    "FROM bills WHERE bill_code LIKE :datePrefix", nativeQuery = true)
