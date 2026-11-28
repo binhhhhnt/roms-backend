@@ -1,5 +1,6 @@
 package com.roms.service.impl;
 
+import com.roms.dto.event.PrintJobEvent;
 import com.roms.dto.response.BillPreviewItemDto;
 import com.roms.dto.response.BillPreviewResponse;
 import com.roms.dto.response.BillResponse;
@@ -10,10 +11,13 @@ import com.roms.entity.OrderItem;
 import com.roms.repository.OrderItemRepository;
 import com.roms.repository.OrderRepository;
 import com.roms.service.BillService;
+import com.roms.service.PrintAgentRegistryService;
 import com.roms.service.PrinterService;
 import com.roms.service.RestaurantSettingService;
-import lombok.RequiredArgsConstructor;
+import com.roms.websocket.StompDestinations;
+import com.roms.websocket.StompEventPublisher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.print.PrintService;
@@ -33,18 +37,48 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PrinterServiceImpl implements PrinterService {
 
     private final RestaurantSettingService settingService;
     private final BillService billService;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final PrintAgentRegistryService printAgentRegistryService;
+    private final StompEventPublisher stompEventPublisher;
+
+    public PrinterServiceImpl(RestaurantSettingService settingService,
+                              BillService billService,
+                              OrderRepository orderRepository,
+                              OrderItemRepository orderItemRepository) {
+        this(settingService, billService, orderRepository, orderItemRepository, null, null);
+    }
+
+    @Autowired
+    public PrinterServiceImpl(RestaurantSettingService settingService,
+                              BillService billService,
+                              OrderRepository orderRepository,
+                              OrderItemRepository orderItemRepository,
+                              PrintAgentRegistryService printAgentRegistryService,
+                              StompEventPublisher stompEventPublisher) {
+        this.settingService = settingService;
+        this.billService = billService;
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.printAgentRegistryService = printAgentRegistryService;
+        this.stompEventPublisher = stompEventPublisher;
+    }
+
+    private boolean isPrintAgentOnline() {
+        return printAgentRegistryService != null
+                && stompEventPublisher != null
+                && printAgentRegistryService.isOnline();
+    }
 
     private final ExecutorService printExecutor = Executors.newSingleThreadExecutor();
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -70,6 +104,52 @@ public class PrinterServiceImpl implements PrinterService {
 
     @Override
     public void printBill(Long billId) {
+        if (isPrintAgentOnline()) {
+            RestaurantSettingResponse settings = settingService.getSettings();
+            String printerName = settings.getBillPrinterName();
+            if (printerName == null || printerName.isBlank()) {
+                log.info("Bill printer is not configured. Skipping Print Agent job for bill id: {}", billId);
+                return;
+            }
+            String paperSize = settings.getBillPaperSize() != null ? settings.getBillPaperSize() : "K80";
+            BillResponse bill = billService.getBillById(billId);
+            PrintJobEvent event = PrintJobEvent.builder()
+                    .jobId(UUID.randomUUID().toString())
+                    .type(PrintJobEvent.JobType.BILL)
+                    .printerName(printerName)
+                    .paperSize(paperSize)
+                    .restaurantName(settings.getRestaurantName())
+                    .address(settings.getAddress())
+                    .phone(settings.getPhone())
+                    .receiptFooter(settings.getReceiptFooter())
+                    .tableCode(bill.getTableCode())
+                    .billCode(bill.getBillCode())
+                    .cashierName(bill.getCreatedByName())
+                    .openedAt(bill.getOpenedAt() != null ? bill.getOpenedAt().format(DATE_TIME_FORMATTER) : null)
+                    .closedAt(bill.getClosedAt() != null ? bill.getClosedAt().format(DATE_TIME_FORMATTER) : null)
+                    .items(bill.getItems() == null ? List.of() : bill.getItems().stream()
+                            .map(i -> PrintJobEvent.PrintJobItemDto.builder()
+                                    .itemName(i.getItemName())
+                                    .quantity(i.getQuantity())
+                                    .unitPrice(i.getUnitPrice())
+                                    .subtotal(i.getSubtotal())
+                                    .build())
+                            .toList())
+                    .amountBeforeDiscount(bill.getAmountBeforeDiscount())
+                    .discountAmount(bill.getDiscountAmount())
+                    .promotionCode(bill.getPromotionCode())
+                    .totalAmount(bill.getTotalAmount())
+                    .payments(bill.getPayments() == null ? List.of() : bill.getPayments().stream()
+                            .map(p -> PrintJobEvent.PrintJobPaymentDto.builder()
+                                    .method(p.getPaymentMethod() != null ? p.getPaymentMethod().name() : "CASH")
+                                    .amount(p.getAmount())
+                                    .build())
+                            .toList())
+                    .build();
+            stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_PRINT_JOBS, event);
+            return;
+        }
+
         printExecutor.submit(() -> {
             try {
                 RestaurantSettingResponse settings = settingService.getSettings();
@@ -92,6 +172,48 @@ public class PrinterServiceImpl implements PrinterService {
 
     @Override
     public void printProforma(Long sessionId) {
+        if (isPrintAgentOnline()) {
+            RestaurantSettingResponse settings = settingService.getSettings();
+            String printerName = settings.getBillPrinterName();
+            if (printerName == null || printerName.isBlank()) {
+                log.info("Bill printer is not configured. Skipping Print Agent job for proforma session id: {}", sessionId);
+                return;
+            }
+            String paperSize = settings.getBillPaperSize() != null ? settings.getBillPaperSize() : "K80";
+            BillPreviewResponse preview = billService.getBillPreview(sessionId);
+            PrintJobEvent event = PrintJobEvent.builder()
+                    .jobId(UUID.randomUUID().toString())
+                    .type(PrintJobEvent.JobType.PROFORMA)
+                    .printerName(printerName)
+                    .paperSize(paperSize)
+                    .restaurantName(settings.getRestaurantName())
+                    .address(settings.getAddress())
+                    .phone(settings.getPhone())
+                    .receiptFooter(settings.getReceiptFooter())
+                    .tableCode(preview.getTableCode())
+                    .openedAt(preview.getOpenedAt() != null ? preview.getOpenedAt().format(DATE_TIME_FORMATTER) : null)
+                    .closedAt(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+                    .items(preview.getItems() == null ? List.of() : preview.getItems().stream()
+                            .map(i -> PrintJobEvent.PrintJobItemDto.builder()
+                                    .itemName(i.getItemName())
+                                    .quantity(i.getQuantity())
+                                    .unitPrice(i.getUnitPrice())
+                                    .subtotal(i.getSubtotal())
+                                    .build())
+                            .toList())
+                    .amountBeforeDiscount(preview.getAmountBeforeDiscount())
+                    .taxRows(preview.getTaxBreakdowns() == null ? List.of() : preview.getTaxBreakdowns().stream()
+                            .map(t -> PrintJobEvent.PrintJobTaxDto.builder()
+                                    .rate(t.getRate())
+                                    .amount(t.getTaxAmount())
+                                    .build())
+                            .toList())
+                    .totalAmount(preview.getAmountBeforeDiscount())
+                    .build();
+            stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_PRINT_JOBS, event);
+            return;
+        }
+
         printExecutor.submit(() -> {
             try {
                 RestaurantSettingResponse settings = settingService.getSettings();
@@ -115,6 +237,50 @@ public class PrinterServiceImpl implements PrinterService {
 
     @Override
     public void printKitchenReadyTicket(Long orderId, List<Long> readyOrderItemIds) {
+        if (isPrintAgentOnline()) {
+            RestaurantSettingResponse settings = settingService.getSettings();
+            if (Boolean.FALSE.equals(settings.getPrintReadyTicket())) {
+                return;
+            }
+            String printerName = settings.getReadyTicketPrinterName();
+            if (printerName == null || printerName.isBlank()) {
+                log.info("Kitchen ready ticket printer is not configured. Skipping Print Agent job for order id: {}", orderId);
+                return;
+            }
+            String paperSize = settings.getReadyTicketPaperSize() != null ? settings.getReadyTicketPaperSize() : "K80";
+            Order order = orderRepository.findByIdWithSessionAndTable(orderId).orElse(null);
+            if (order == null) {
+                return;
+            }
+            List<OrderItem> items = (readyOrderItemIds != null && !readyOrderItemIds.isEmpty())
+                    ? orderItemRepository.findAllByIdWithMenuItem(readyOrderItemIds)
+                    : orderItemRepository.findByOrderIdWithMenuItem(orderId);
+            if (items.isEmpty()) {
+                return;
+            }
+            String tableCode = order.getServiceSession() != null && order.getServiceSession().getTable() != null
+                    ? order.getServiceSession().getTable().getTableCode()
+                    : "N/A";
+            PrintJobEvent event = PrintJobEvent.builder()
+                    .jobId(UUID.randomUUID().toString())
+                    .type(PrintJobEvent.JobType.KITCHEN_READY)
+                    .printerName(printerName)
+                    .paperSize(paperSize)
+                    .tableCode(tableCode)
+                    .orderId(order.getId())
+                    .orderCreatedAt(order.getCreatedAt() != null ? order.getCreatedAt().format(DATE_TIME_FORMATTER) : null)
+                    .items(items.stream()
+                            .map(i -> PrintJobEvent.PrintJobItemDto.builder()
+                                    .itemName(i.getMenuItem() != null ? i.getMenuItem().getName() : "Món #" + i.getId())
+                                    .quantity(i.getQuantity())
+                                    .note(i.getNote())
+                                    .build())
+                            .toList())
+                    .build();
+            stompEventPublisher.publishAfterCommit(StompDestinations.TOPIC_PRINT_JOBS, event);
+            return;
+        }
+
         printExecutor.submit(() -> {
             try {
                 RestaurantSettingResponse settings = settingService.getSettings();

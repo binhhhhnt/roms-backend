@@ -29,6 +29,7 @@ public final class StompDestinations {
     public static final String TOPIC_SERVICE_STAFF_CALLS_ACK = "/topic/service/staff-calls-ack";
     public static final String TOPIC_STAFF_QR_ORDERS = "/topic/staff/qr-orders";
     public static final String TOPIC_MENU = "/topic/menu";
+    public static final String TOPIC_PRINT_JOBS = "/topic/print-jobs";
     public static final String TOPIC_SESSION_ORDERS_PATTERN = "^/topic/session/(\\d+)/orders$";
     public static final String TOPIC_QR_SESSION_PATTERN = "^/topic/qr/session/(\\d+)$";
     public static final String USER_NOTIFICATIONS_QUEUE = "/user/queue/notifications";

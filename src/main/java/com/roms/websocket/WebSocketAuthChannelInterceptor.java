@@ -7,7 +7,9 @@ import com.roms.repository.ServiceSessionRepository;
 import com.roms.repository.UserRepository;
 import com.roms.security.JwtTokenProvider;
 import com.roms.security.UserPrincipal;
+import com.roms.service.PrintAgentRegistryService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -42,15 +44,26 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
     private final RefreshTokenRepository refreshTokenRepository;
 
     private final ServiceSessionRepository serviceSessionRepository;
+    private final PrintAgentRegistryService printAgentRegistryService;
 
     public WebSocketAuthChannelInterceptor(JwtTokenProvider jwtTokenProvider,
                                            UserRepository userRepository,
                                            RefreshTokenRepository refreshTokenRepository,
                                            ServiceSessionRepository serviceSessionRepository) {
+        this(jwtTokenProvider, userRepository, refreshTokenRepository, serviceSessionRepository, null);
+    }
+
+    @Autowired
+    public WebSocketAuthChannelInterceptor(JwtTokenProvider jwtTokenProvider,
+                                           UserRepository userRepository,
+                                           RefreshTokenRepository refreshTokenRepository,
+                                           ServiceSessionRepository serviceSessionRepository,
+                                           PrintAgentRegistryService printAgentRegistryService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.serviceSessionRepository = serviceSessionRepository;
+        this.printAgentRegistryService = printAgentRegistryService;
     }
 
     @Override
@@ -78,6 +91,20 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (!StringUtils.hasText(authHeader)) {
+            String agentKey = accessor.getFirstNativeHeader("X-Print-Agent-Key");
+            if (StringUtils.hasText(agentKey) && printAgentRegistryService != null && printAgentRegistryService.isValidKey(agentKey)) {
+                UsernamePasswordAuthenticationToken agentAuth = new UsernamePasswordAuthenticationToken(
+                        "print-agent", null, java.util.List.of());
+                if (accessor.isMutable()) {
+                    accessor.setUser(agentAuth);
+                    return message;
+                }
+                StompHeaderAccessor newAccessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+                newAccessor.copyHeaders(accessor.getMessageHeaders());
+                newAccessor.setUser(agentAuth);
+                return MessageBuilder.createMessage(message.getPayload(), newAccessor.getMessageHeaders());
+            }
+
             String qrToken = accessor.getFirstNativeHeader("qrToken");
             if (StringUtils.hasText(qrToken)) {
                 UsernamePasswordAuthenticationToken qrAuth = new UsernamePasswordAuthenticationToken(
@@ -140,6 +167,14 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         String destination = accessor.getDestination();
         if (!StringUtils.hasText(destination)) {
             throw new AccessDeniedException("Destination cannot be empty");
+        }
+
+        if (user instanceof UsernamePasswordAuthenticationToken auth
+                && "print-agent".equals(auth.getPrincipal())) {
+            if (StompDestinations.TOPIC_PRINT_JOBS.equals(destination.trim())) {
+                return;
+            }
+            throw new AccessDeniedException("Access denied for Print Agent destination: " + destination);
         }
 
         if (user instanceof UsernamePasswordAuthenticationToken auth

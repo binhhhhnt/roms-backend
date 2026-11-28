@@ -207,4 +207,36 @@ class WebSocketAuthChannelInterceptorTest {
         Message<?> result = interceptor.preSend(message, messageChannel);
         assertThat(result).isNotNull();
     }
+
+    @Test
+    @DisplayName("CONNECT and SUBSCRIBE with valid X-Print-Agent-Key to /topic/print-jobs succeeds")
+    void testPrintAgent_connectAndSubscribe_allowed() {
+        com.roms.service.PrintAgentRegistryService registry =
+                new com.roms.service.PrintAgentRegistryService("secret-agent-key");
+        WebSocketAuthChannelInterceptor agentInterceptor = new WebSocketAuthChannelInterceptor(
+                jwtTokenProvider, userRepository, refreshTokenRepository, serviceSessionRepository, registry);
+
+        StompHeaderAccessor connectAccessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+        connectAccessor.setNativeHeader("X-Print-Agent-Key", "secret-agent-key");
+        Message<?> connectMsg = MessageBuilder.createMessage(new byte[0], connectAccessor.getMessageHeaders());
+        Message<?> connectResult = agentInterceptor.preSend(connectMsg, messageChannel);
+        assertThat(connectResult).isNotNull();
+
+        StompHeaderAccessor wrappedConnect = StompHeaderAccessor.wrap(connectResult);
+        assertThat(wrappedConnect.getUser()).isNotNull();
+        assertThat(wrappedConnect.getUser().getName()).isEqualTo("print-agent");
+
+        StompHeaderAccessor subAccessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        subAccessor.setDestination(StompDestinations.TOPIC_PRINT_JOBS);
+        subAccessor.setUser(wrappedConnect.getUser());
+        Message<?> subMsg = MessageBuilder.createMessage(new byte[0], subAccessor.getMessageHeaders());
+        assertThat(agentInterceptor.preSend(subMsg, messageChannel)).isNotNull();
+
+        StompHeaderAccessor deniedSub = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        deniedSub.setDestination(StompDestinations.TOPIC_KITCHEN_ORDERS);
+        deniedSub.setUser(wrappedConnect.getUser());
+        Message<?> deniedMsg = MessageBuilder.createMessage(new byte[0], deniedSub.getMessageHeaders());
+        assertThatThrownBy(() -> agentInterceptor.preSend(deniedMsg, messageChannel))
+                .isInstanceOf(AccessDeniedException.class);
+    }
 }
