@@ -68,4 +68,18 @@ public class KitchenController {
         OrderItemResponse response = kitchenService.updateOrderItemStatus(id, itemId, request);
         return ResponseEntity.ok(ApiResponse.success("Order item status updated successfully", response));
     }
+
+    @PostMapping("/{id}/print-ready")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
+    public ResponseEntity<ApiResponse<Void>> printReadyTicket(@PathVariable("id") Long id) {
+        kitchenService.printReadyTicket(id);
+        return ResponseEntity.ok(ApiResponse.success("Ready ticket print job dispatched", null));
+    }
+
+    @PostMapping("/{id}/print-order")
+    @PreAuthorize("hasAnyRole('KITCHEN_STAFF', 'SERVICE_STAFF', 'CASHIER_STAFF', 'OWNER')")
+    public ResponseEntity<ApiResponse<Void>> printOrderTicket(@PathVariable("id") Long id) {
+        kitchenService.printOrderTicket(id);
+        return ResponseEntity.ok(ApiResponse.success("Order ticket print job dispatched", null));
+    }
 }

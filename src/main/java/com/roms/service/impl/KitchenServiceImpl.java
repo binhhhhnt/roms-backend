@@ -331,4 +331,32 @@ public class KitchenServiceImpl implements KitchenService {
                 .createdAt(item.getCreatedAt())
                 .build();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void printReadyTicket(Long orderId) {
+        orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        List<Long> readyItemIds = orderItemRepository.findByOrderId(orderId).stream()
+                .filter(i -> i.getStatus() == OrderItemStatus.READY)
+                .map(OrderItem::getId)
+                .toList();
+        if (!readyItemIds.isEmpty()) {
+            printerService.printKitchenReadyTicket(orderId, readyItemIds);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void printOrderTicket(Long orderId) {
+        orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        List<Long> activeItemIds = orderItemRepository.findByOrderId(orderId).stream()
+                .filter(i -> i.getStatus() == OrderItemStatus.PENDING || i.getStatus() == OrderItemStatus.COOKING)
+                .map(OrderItem::getId)
+                .toList();
+        if (!activeItemIds.isEmpty()) {
+            printerService.printKitchenReadyTicket(orderId, activeItemIds);
+        }
+    }
 }

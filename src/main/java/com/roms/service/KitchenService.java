@@ -62,4 +62,8 @@ public interface KitchenService {
      * @return updated order item response
      */
     OrderItemResponse updateOrderItemStatus(Long orderId, Long itemId, UpdateOrderItemStatusRequest request);
+
+    void printReadyTicket(Long orderId);
+
+    void printOrderTicket(Long orderId);
 }
